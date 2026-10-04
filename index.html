@@ -6,18 +6,7 @@
 <title>Редактор расписания</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{
-  --bg:var(--tg-theme-bg-color,#fff);
-  --bg2:var(--tg-theme-secondary-bg-color,#f1f3f5);
-  --tx:var(--tg-theme-text-color,#17191c);
-  --hint:var(--tg-theme-hint-color,#6b7280);
-  --ac:var(--tg-theme-button-color,#2f6fed);
-  --act:var(--tg-theme-button-text-color,#fff);
-  --red:#d6403a;
-  box-sizing:border-box;
-  padding-top:env(safe-area-inset-top,0px);
-  padding-bottom:env(safe-area-inset-bottom,0px);
-}
+:root{--bg:var(--tg-theme-bg-color,#fff);--bg2:var(--tg-theme-secondary-bg-color,#f1f3f5);--tx:var(--tg-theme-text-color,#17191c);--hint:var(--tg-theme-hint-color,#6b7280);--ac:var(--tg-theme-button-color,#2f6fed);--act:var(--tg-theme-button-text-color,#fff);--red:#d6403a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
 *,*::before,*::after{box-sizing:inherit}
 html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif}
 body{min-height:100vh;padding-bottom:90px}
@@ -25,88 +14,110 @@ button,input,textarea{font:inherit;color:inherit}
 header{padding:16px 16px 8px}
 h1{font-size:20px;margin:0 0 2px}
 .sub{color:var(--hint);font-size:14px;margin:0}
-.drop{margin:12px 16px;padding:28px 16px;border:2px dashed var(--hint);border-radius:14px;text-align:center;background:var(--bg2);cursor:pointer}
-.drop b{display:block;margin-bottom:4px}
-.drop span{color:var(--hint);font-size:14px}
-.drop.over{border-color:var(--ac)}
-.day{position:sticky;top:0;background:var(--bg);padding:14px 16px 6px;font-weight:600;font-size:14px;color:var(--hint);text-transform:capitalize;z-index:1}
-.ev{display:flex;gap:12px;padding:10px 16px;border-top:1px solid var(--bg2);align-items:flex-start}
-.ev .t{width:56px;flex:none;font-variant-numeric:tabular-nums;font-size:14px;color:var(--hint);padding-top:2px}
+.drop{margin:12px 16px;padding:28px 16px;border:2px dashed var(--hint);border-radius:14px;text-align:center;background:var(--bg2);cursor:pointer;display:block}
+.drop b{display:block;margin-bottom:4px}.drop span{color:var(--hint);font-size:14px}
+.tools{display:flex;gap:8px;padding:4px 16px 8px;position:sticky;top:0;background:var(--bg);z-index:2}
+.tools input[type=search]{flex:1;min-width:0;border:0;background:var(--bg2);border-radius:10px;padding:9px 12px}
+.sm{border:0;background:var(--bg2);border-radius:10px;padding:0 12px;cursor:pointer;white-space:nowrap}
+.sm:disabled{opacity:.4}
+.ev.cx .m strong{text-decoration:line-through}.ev.cx{opacity:.55}.ev.ex{opacity:.35}.x.c{color:var(--hint);font-size:20px}
+.day{padding:14px 16px 6px;font-weight:600;font-size:14px;color:var(--hint);text-transform:capitalize}
+.day.today{color:var(--ac)}
+.ev{display:flex;gap:10px;padding:10px 12px 10px 13px;margin:0 8px;border-left:4px solid var(--hint);border-radius:6px;align-items:flex-start}
+.ev+.ev{margin-top:2px}
+.ev.bad{background:rgba(214,64,58,.1)}
+.ev .t{width:52px;flex:none;font-variant-numeric:tabular-nums;font-size:13px;color:var(--hint)}
 .ev .t b{display:block;color:var(--tx);font-size:15px}
 .ev .m{flex:1;min-width:0;cursor:pointer}
 .ev .m strong{display:block;word-break:break-word}
 .ev .m small{display:block;color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev .w{color:var(--red);font-size:12px}
 .x{border:0;background:none;color:var(--red);font-size:22px;line-height:1;padding:4px 8px;cursor:pointer}
+.ev input[type=checkbox]{width:20px;height:20px;margin-top:3px;flex:none}
 .bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--bg2)}
 .btn{flex:1;border:0;border-radius:12px;padding:13px 10px;background:var(--bg2);cursor:pointer;font-weight:600}
-.btn.p{background:var(--ac);color:var(--act)}
+.btn.p{background:var(--ac);color:var(--act)}.btn.d{background:var(--red);color:#fff}
 .btn:disabled{opacity:.4}
 .empty{padding:32px 16px;text-align:center;color:var(--hint)}
 dialog{border:0;border-radius:16px;padding:0;width:min(520px,94vw);background:var(--bg);color:var(--tx);max-height:92vh}
 dialog::backdrop{background:rgba(0,0,0,.45)}
-form{padding:18px 16px;display:grid;gap:12px}
+form,.dd{padding:18px 16px;display:grid;gap:12px}
 label{display:grid;gap:4px;font-size:13px;color:var(--hint)}
-input[type=text],input[type=date],input[type=datetime-local],textarea{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:10px;width:100%;color:var(--tx)}
+input[type=text],input[type=number],input[type=date],input[type=datetime-local],textarea{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:10px;width:100%;color:var(--tx)}
 textarea{min-height:70px;resize:vertical}
 .chk{display:flex;gap:8px;align-items:center;color:var(--tx);font-size:15px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
-.toast.on{opacity:1}
+.dl{font-size:14px;margin:0;padding-left:18px;max-height:34vh;overflow:auto}
+.dl li{margin:2px 0;word-break:break-word}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}
+.toast.on{opacity:1}.toast.act{pointer-events:auto;cursor:pointer}
 </style>
 </head>
 <body>
-<header>
-  <h1 id="title">Редактор расписания</h1>
-  <p class="sub" id="sub">Загрузите файл .ics, чтобы увидеть записи</p>
-</header>
-
-<label class="drop" id="drop" style="display:block">
-  <b>Выбрать файл .ics</b>
-  <span>или перетащите сюда</span>
+<header><h1>Редактор расписания</h1><p class="sub" id="sub"></p></header>
+<label class="drop" id="drop">
+  <b>Выбрать файл .ics</b><span>или перетащите сюда</span>
   <input type="file" id="file" accept=".ics,text/calendar" hidden>
 </label>
-
+<div id="draft"></div>
+<div class="tools" id="tools" style="display:none">
+  <input type="search" id="q" placeholder="Поиск: предмет, аудитория">
+  <button class="sm" id="undo" disabled aria-label="Отменить действие">↶</button>
+  <button class="sm" id="subj">Предметы</button>
+  <button class="sm" id="selmode">Выбрать</button>
+</div>
 <main id="list"></main>
-
-<div class="bar">
+<div class="bar" id="bar1">
   <button class="btn" id="add" disabled>+ Запись</button>
   <button class="btn" id="share" disabled>Текст</button>
   <button class="btn p" id="save" disabled>Сохранить .ics</button>
 </div>
+<div class="bar" id="bar2" style="display:none">
+  <button class="btn" id="selall">Все найденные</button>
+  <button class="btn d" id="seldel" disabled>Удалить</button>
+  <button class="btn" id="seldone">Готово</button>
+</div>
 
-<dialog id="dlg">
-  <form id="f" method="dialog">
-    <label>Название<input type="text" id="fs" required></label>
-    <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
-    <div class="row">
-      <label>Начало<input type="datetime-local" id="fb" required></label>
-      <label>Конец<input type="datetime-local" id="fe"></label>
-    </div>
-    <label>Место<input type="text" id="fl"></label>
-    <label>Описание<textarea id="fd"></textarea></label>
-    <div class="row">
-      <button type="button" class="btn" id="cancel">Отмена</button>
-      <button class="btn p" id="ok" value="ok">Сохранить</button>
-    </div>
-  </form>
-</dialog>
-<dialog id="txd">
-  <form method="dialog">
-    <label>Содержимое файла .ics<textarea id="txa" readonly style="min-height:240px;font:12px/1.3 monospace"></textarea></label>
-    <div class="row">
-      <button type="button" class="btn p" id="txc">Копировать</button>
-      <button class="btn" value="x">Закрыть</button>
-    </div>
-  </form>
-</dialog>
+<dialog id="dlg"><form id="f" method="dialog">
+  <label>Название<input type="text" id="fs" required list="ls"></label>
+  <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
+  <label class="chk"><input type="checkbox" id="fc"> Занятие отменено</label>
+  <div class="row">
+    <label>Начало<input type="datetime-local" id="fb" required></label>
+    <label>Конец<input type="datetime-local" id="fe"></label>
+  </div>
+  <label>Место<input type="text" id="fl" list="ll"></label>
+  <label>Описание<textarea id="fd"></textarea></label>
+  <label>Повторить ещё на N недель (копии каждую неделю)<input type="number" id="fr" min="0" max="40" value="0"></label>
+  <div class="row"><button type="button" class="btn" id="fcopy">Сделать копию</button><button type="button" class="btn" id="cancel">Отмена</button></div>
+  <button class="btn p" value="ok">Сохранить</button>
+  <datalist id="ls"></datalist><datalist id="ll"></datalist>
+</form></dialog>
+
+<dialog id="sd"><div class="dd"><b>Предметы в итоговом файле</b>
+  <p class="sub">Снимите галочки с лишних: записи останутся в приложении, но в файл не попадут.</p>
+  <div id="sl" style="display:grid;gap:10px;max-height:46vh;overflow:auto"></div>
+  <div class="row"><button class="btn" id="sall">Все</button><button class="btn" id="snone">Ни одного</button></div>
+  <button class="btn p" id="sdone">Готово</button></div></dialog>
+
+<dialog id="dd"><div class="dd">
+  <b>Что изменилось</b><div id="ddb"></div>
+  <div class="row"><button class="btn" id="ddc">Назад</button><button class="btn p" id="ddok">Сохранить файл</button></div>
+</div></dialog>
+
+<dialog id="txd"><form method="dialog">
+  <label>Содержимое файла .ics<textarea id="txa" readonly style="min-height:240px;font:12px/1.3 monospace"></textarea></label>
+  <div class="row"><button type="button" class="btn p" id="txc">Копировать</button><button class="btn" value="x">Закрыть</button></div>
+</form></dialog>
 <div class="toast" id="toast"></div>
 
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
-
 const $ = id => document.getElementById(id);
-let events = [], others = [], fileName = 'schedule.ics', editing = null;
+const h = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let events = [], others = [], fileName = 'schedule.ics', fileLoaded = false;
+let nid = 0, editing = null, orig = {}, undoStack = [], sel = new Set(), selMode = false, scrolled = false, prevStart = '', excluded = new Set();
 
 /* ---------- ICS parse ---------- */
 const unesc = s => s.replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');
@@ -139,7 +150,7 @@ function parseICS(text){
 }
 
 function toEvent(items){
-  const e = { summary:'', location:'', description:'', start:null, end:null, uid:'', extra:[] };
+  const e = { id:++nid, summary:'', location:'', description:'', start:null, end:null, uid:'', extra:[], cancelled:false };
   for (const it of items){
     if (it.depth > 0 || /^(BEGIN|END):/i.test(it.line)){ e.extra.push(it.line); continue; }
     const p = splitLine(it.line);
@@ -151,9 +162,11 @@ function toEvent(items){
       case 'UID': e.uid = p.value; break;
       case 'DTSTART': e.start = { v:p.value, params:p.params }; break;
       case 'DTEND': e.end = { v:p.value, params:p.params }; break;
+      case 'STATUS': if (/^CANCELLED/i.test(p.value)) e.cancelled = true; else e.extra.push(it.line); break;
       default: e.extra.push(it.line);
     }
   }
+  if (e.summary.startsWith('[Отмена] ')){ e.summary = e.summary.slice(9); e.cancelled = true; }
   return e;
 }
 
@@ -204,102 +217,211 @@ const fmtDay = k => new Date(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8))
   .toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 const hm = d => { const v = wall(d); return d && !isAllDay(d) && v.length >= 13 ? `${v.slice(9,11)}:${v.slice(11,13)}` : ''; };
 
+/* ---------- state, undo, draft ---------- */
+const okey = e => e.uid || 'n' + e.id;
+const sig = e => JSON.stringify([e.summary, e.location, e.description, e.start, e.end, e.cancelled]);
+const byId = id => events.find(e => e.id === id);
+function snapOrig(){ orig = {}; events.forEach(e => orig[okey(e)] = { s: sig(e), name: lbl(e) }); }
+function saveDraft(){
+  try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded] })); } catch(e){}
+}
+function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft')); } catch(e){ return null; } }
+function mutate(fn){
+  undoStack.push(JSON.stringify(events)); if (undoStack.length > 30) undoStack.shift();
+  fn(); saveDraft(); render();
+}
+function undo(){
+  if (!undoStack.length) return;
+  events = JSON.parse(undoStack.pop()); sel.clear(); saveDraft(); render(); toast('Действие отменено');
+}
+$('undo').onclick = undo;
+
+/* ---------- derived ---------- */
+const lbl = e => { const w = wall(e.start); return `${w.slice(6,8)}.${w.slice(4,6)} ${hm(e.start)} ${e.summary}`.replace(/  +/g,' '); };
+const hue = s => { let x = 0; for (const c of s) x = (x * 31 + c.charCodeAt(0)) % 360; return x; };
+const span = e => {
+  if (!e.start || isAllDay(e.start)) return null;
+  const a = digitsMs(wall(e.start)); return [a, e.end && !isAllDay(e.end) ? digitsMs(wall(e.end)) : a];
+};
+function overlaps(){
+  const bad = new Set(), L = events.filter(e => !e.cancelled && !excluded.has(e.summary)).map(e => [e, span(e)]).filter(x => x[1]);
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++){
+    const a = L[i][1], b = L[j][1];
+    if (a[0] < b[1] && b[0] < a[1]){ bad.add(L[i][0].id); bad.add(L[j][0].id); }
+  }
+  return bad;
+}
+function visible(){
+  const q = $('q').value.trim().toLowerCase();
+  return events.filter(e => !q || (e.summary + ' ' + e.location + ' ' + e.description).toLowerCase().includes(q));
+}
+
 /* ---------- render ---------- */
 function render(){
-  const list = $('list');
-  const has = events.length > 0 || others.length > 0 || fileLoaded;
+  const bad = overlaps(), n = events.length;
   ['add','save','share'].forEach(id => $(id).disabled = !fileLoaded);
-  $('sub').textContent = fileLoaded ? `${fileName} · записей: ${events.length}` : 'Загрузите файл .ics, чтобы увидеть записи';
+  $('undo').disabled = !undoStack.length;
+  $('tools').style.display = fileLoaded ? 'flex' : 'none';
   $('drop').style.display = fileLoaded ? 'none' : 'block';
+  $('bar1').style.display = selMode ? 'none' : 'flex';
+  $('bar2').style.display = selMode ? 'flex' : 'none';
+  $('seldel').textContent = sel.size ? `Удалить (${sel.size})` : 'Удалить';
+  $('seldel').disabled = !sel.size;
+  $('selmode').textContent = selMode ? 'Отмена' : 'Выбрать';
+  $('subj').textContent = excluded.size ? 'Предметы •' : 'Предметы';
+  $('sub').textContent = fileLoaded ? `${fileName} · записей: ${n}` + (excluded.size ? ` · в файл: ${exported().length}` : '') + (bad.size ? ` · с пересечениями: ${bad.size}` : '') : 'Загрузите файл .ics, чтобы увидеть записи';
+  const d = loadDraft();
+  $('draft').innerHTML = !fileLoaded && d && d.events && d.events.length
+    ? `<div class="drop" id="resume" style="border-style:solid"><b>Продолжить правки</b><span>${h(d.fileName)} · записей: ${d.events.length}</span></div>` : '';
+  const list = $('list');
   if (!fileLoaded){ list.innerHTML = ''; return; }
-  if (!events.length){ list.innerHTML = '<div class="empty">Записей нет. Нажмите «+ Запись».</div>'; return; }
-  const sorted = events.map((e,i)=>({e,i})).sort((a,b)=> key(a.e).localeCompare(key(b.e)));
+  const vis = visible();
+  if (!vis.length){ list.innerHTML = `<div class="empty">${n ? 'Ничего не найдено.' : 'Записей нет. Нажмите «+ Запись».'}</div>`; return; }
+  const today = new Date(), tk = `${today.getFullYear()}${p2(today.getMonth()+1)}${p2(today.getDate())}`;
+  vis.sort((a, b) => key(a).localeCompare(key(b)));
   let html = '', day = '';
-  for (const {e,i} of sorted){
-    const d = key(e).slice(0,8);
-    if (d !== day){ day = d; html += `<div class="day">${d ? fmtDay(d) : 'Без даты'}</div>`; }
+  for (const e of vis){
+    const dk = key(e).slice(0,8);
+    if (dk !== day){
+      day = dk;
+      html += `<div class="day ${dk === tk ? 'today' : ''}" data-day="${dk}">${dk ? fmtDay(dk) : 'Без даты'}${dk === tk ? ' · сегодня' : ''}</div>`;
+    }
     const t1 = hm(e.start), t2 = hm(e.end);
-    const time = t1 ? `<b>${t1}</b>${t2 ? t2 : ''}` : '<b>весь день</b>';
-    html += `<div class="ev"><div class="t">${time}</div>
-      <div class="m" data-i="${i}"><strong>${h(e.summary || 'Без названия')}</strong>
-      ${e.location ? `<small>${h(e.location)}</small>` : ''}</div>
-      <button class="x" data-del="${i}" aria-label="Удалить">×</button></div>`;
+    html += `<div class="ev ${bad.has(e.id) ? 'bad' : ''} ${e.cancelled ? 'cx' : ''} ${excluded.has(e.summary) ? 'ex' : ''}" style="border-left-color:hsl(${hue(e.summary)} 60% 50%)">
+      ${selMode ? `<input type="checkbox" data-s="${e.id}" ${sel.has(e.id) ? 'checked' : ''}>` : ''}
+      <div class="t">${t1 ? `<b>${t1}</b>${t2}` : '<b>весь день</b>'}</div>
+      <div class="m" data-i="${e.id}"><strong>${h(e.summary || 'Без названия')}</strong>
+      ${e.location ? `<small>${h(e.location)}</small>` : ''}${bad.has(e.id) ? '<span class="w">⚠ пересекается с другой парой</span>' : ''}</div>
+      ${selMode ? '' : `<button class="x c" data-cx="${e.id}" aria-label="Отменить пару">⊘</button><button class="x" data-del="${e.id}" aria-label="Удалить">×</button>`}</div>`;
   }
   list.innerHTML = html;
+  if (!scrolled){
+    scrolled = true;
+    const t = [...list.querySelectorAll('.day')].find(x => x.dataset.day >= tk);
+    if (t) setTimeout(() => t.scrollIntoView({ block:'start' }), 0);
+  }
 }
-const h = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let fileLoaded = false;
+const p2 = n => String(n).padStart(2,'0');
+$('q').oninput = render;
 
 /* ---------- load ---------- */
+function setData(evs, oth, name, o, ex){
+  excluded = new Set(ex || []); events = evs; others = oth; fileName = name; fileLoaded = true; undoStack = []; sel.clear(); selMode = false; scrolled = false;
+  nid = Math.max(nid, ...events.map(e => e.id), 0);
+  if (o) orig = o; else snapOrig();
+  saveDraft(); render();
+}
 function load(file){
   if (!file) return;
   const r = new FileReader();
   r.onload = () => {
     const { evs, oth } = parseICS(String(r.result));
-    events = evs; others = oth; fileName = file.name || 'schedule.ics';
-    fileLoaded = true; render();
+    setData(evs, oth, file.name || 'schedule.ics');
     toast(evs.length ? 'Файл загружен' : 'Записей в файле не найдено');
   };
   r.readAsText(file);
 }
 $('file').onchange = e => load(e.target.files[0]);
 const drop = $('drop');
-['dragover','dragenter'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave','drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => load(e.dataTransfer.files[0]));
-
-/* ---------- edit ---------- */
-function setType(){
-  const a = $('fa').checked;
-  $('fb').type = a ? 'date' : 'datetime-local';
-  $('fe').type = a ? 'date' : 'datetime-local';
-}
-$('fa').onchange = () => {
-  const b = $('fb').value, e = $('fe').value;
-  setType();
-  $('fb').value = b ? b.slice(0,10) + ($('fa').checked ? '' : 'T09:00') : '';
-  $('fe').value = e ? e.slice(0,10) + ($('fa').checked ? '' : 'T10:00') : '';
+['dragover','dragenter'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); }));
+drop.addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
+$('draft').onclick = e => {
+  if (!e.target.closest('#resume')) return;
+  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded);
 };
-function openEditor(i){
-  editing = i;
-  const e = i == null ? null : events[i];
-  $('fa').checked = e ? isAllDay(e.start) : false;
+
+/* ---------- editor ---------- */
+const lms = s => new Date(s.length === 10 ? s + 'T00:00' : s).getTime();
+const lfmt = (ms, all) => {
+  const d = new Date(ms), D = `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+  return all ? D : `${D}T${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
+const shiftStr = (v, days) => { if (!v) return v; const d = new Date(lms(v)); d.setDate(d.getDate() + days); return lfmt(d.getTime(), v.length === 10); };
+function setType(){ const t = $('fa').checked ? 'date' : 'datetime-local'; $('fb').type = t; $('fe').type = t; }
+$('fa').onchange = () => {
+  const b = $('fb').value, e = $('fe').value, a = $('fa').checked;
   setType();
-  $('fs').value = e ? e.summary : '';
-  $('fl').value = e ? e.location : '';
-  $('fd').value = e ? e.description : '';
+  $('fb').value = b ? b.slice(0,10) + (a ? '' : 'T09:00') : '';
+  $('fe').value = e ? e.slice(0,10) + (a ? '' : 'T10:00') : '';
+  prevStart = $('fb').value;
+};
+$('fb').onchange = () => {   /* сохраняем длительность пары */
+  const nv = $('fb').value;
+  if (nv && prevStart && $('fe').value){
+    const delta = lms(nv) - lms(prevStart);
+    $('fe').value = lfmt(lms($('fe').value) + delta, $('fa').checked);
+  }
+  prevStart = nv;
+};
+function openEditor(id){
+  editing = id;
+  const e = id == null ? null : byId(id);
+  $('ls').innerHTML = [...new Set(events.map(x => x.summary).filter(Boolean))].map(v => `<option value="${h(v)}">`).join('');
+  $('ll').innerHTML = [...new Set(events.map(x => x.location).filter(Boolean))].map(v => `<option value="${h(v)}">`).join('');
+  $('fa').checked = e ? isAllDay(e.start) : false;
+  $('fc').checked = e ? !!e.cancelled : false;
+  setType();
+  $('fs').value = e ? e.summary : ''; $('fl').value = e ? e.location : ''; $('fd').value = e ? e.description : '';
+  $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none';
   if (e){ $('fb').value = toInput(e.start); $('fe').value = toInput(e.end); }
   else {
-    const n = new Date(); n.setMinutes(0,0,0); n.setHours(n.getHours()+1);
-    const p = x => String(x).padStart(2,'0');
-    const f = d => `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:00`;
-    $('fb').value = f(n); n.setHours(n.getHours()+1); $('fe').value = f(n);
+    const n = new Date(); n.setMinutes(0,0,0); n.setHours(n.getHours() + 1);
+    $('fb').value = lfmt(n.getTime()); n.setHours(n.getHours() + 1); $('fe').value = lfmt(n.getTime());
   }
+  prevStart = $('fb').value;
   $('dlg').showModal();
 }
 $('add').onclick = () => openEditor(null);
 $('cancel').onclick = () => $('dlg').close();
-$('f').onsubmit = () => {
-  const old = editing == null ? null : events[editing];
-  const all = $('fa').checked;
-  const e = old || { extra:[], uid:'' };
-  e.summary = $('fs').value.trim();
-  e.location = $('fl').value.trim();
-  e.description = $('fd').value;
-  e.start = fromInput($('fb').value, all, old && old.start);
-  e.end = fromInput($('fe').value, all, old && old.end);
-  if (!old) events.push(e);
-  render(); toast('Сохранено');
+$('fcopy').onclick = () => {   /* превращает форму в новую запись: поменяйте дату и сохраните */
+  editing = null; $('fcopy').style.display = 'none';
+  $('fb').value = shiftStr($('fb').value, 1); if ($('fe').value) $('fe').value = shiftStr($('fe').value, 1);
+  prevStart = $('fb').value; toast('Копия: поменяйте день и сохраните');
 };
+$('f').onsubmit = () => {
+  const old = editing == null ? null : byId(editing), all = $('fa').checked;
+  const N = Math.max(0, Math.min(40, +$('fr').value || 0));
+  const b = $('fb').value, en = $('fe').value;
+  const fields = { summary:$('fs').value.trim(), location:$('fl').value.trim(), description:$('fd').value, cancelled:$('fc').checked };
+  mutate(() => {
+    const ref = old ? old.start : null, refE = old ? old.end : null, extra = old ? old.extra : [];
+    if (old) Object.assign(old, fields, { start: fromInput(b, all, ref), end: fromInput(en, all, refE) });
+    for (let k = old ? 1 : 0; k <= N; k++)
+      events.push(Object.assign({ id: ++nid, uid:'', extra: extra.slice() }, fields,
+        { start: fromInput(shiftStr(b, 7*k), all, ref), end: fromInput(shiftStr(en, 7*k), all, refE) }));
+    if (!old && N === 0) { /* уже добавлена k=0 */ }
+  });
+  toast(N ? `Сохранено, добавлено копий: ${N}` : 'Сохранено');
+};
+
+/* ---------- list actions ---------- */
 $('list').onclick = ev => {
+  const cx = ev.target.closest('[data-cx]');
+  if (cx){
+    const e = byId(+cx.dataset.cx);
+    mutate(() => { e.cancelled = !e.cancelled; });
+    toast(e.cancelled ? 'Пара отменена · Вернуть' : 'Пара возвращена', e.cancelled); return;
+  }
   const del = ev.target.closest('[data-del]');
   if (del){
-    const i = +del.dataset.del;
-    if (confirm(`Удалить «${events[i].summary || 'Без названия'}»?`)){ events.splice(i,1); render(); }
-    return;
+    const id = +del.dataset.del, e = byId(id);
+    mutate(() => { events = events.filter(x => x.id !== id); });
+    toast(`Удалено: ${e.summary || 'запись'} · Отменить`, true); return;
   }
-  const m = ev.target.closest('[data-i]');
-  if (m) openEditor(+m.dataset.i);
+  const row = ev.target.closest('[data-i]') || (ev.target.closest('.ev') && ev.target.closest('.ev').querySelector('[data-i]'));
+  if (!row) return;
+  const id = +row.dataset.i;
+  if (selMode){ sel.has(id) ? sel.delete(id) : sel.add(id); render(); }
+  else openEditor(id);
+};
+$('selmode').onclick = () => { selMode = !selMode; sel.clear(); render(); };
+$('seldone').onclick = () => { selMode = false; sel.clear(); render(); };
+$('selall').onclick = () => { visible().forEach(e => sel.add(e.id)); render(); };
+$('seldel').onclick = () => {
+  if (!confirm(`Удалить выбранные записи: ${sel.size}?`)) return;
+  const n = sel.size;
+  mutate(() => { events = events.filter(e => !sel.has(e.id)); sel.clear(); selMode = false; });
+  toast(`Удалено: ${n} · Отменить`, true);
 };
 
 /* ---------- export ---------- */
@@ -315,23 +437,23 @@ function buildICS(){
   if (!has('PRODID')) L.push('PRODID:-//Telegram ICS Editor//RU');
   L.push(...others);
   const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
-  for (const e of events){
+  for (const e of exported()){
     L.push('BEGIN:VEVENT');
-    L.push('UID:' + (e.uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now()+Math.random()) + '@ics-editor'));
+    L.push('UID:' + (e.uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random()) + '@ics-editor'));
     if (!e.extra.some(l => /^DTSTAMP/i.test(l))) L.push('DTSTAMP:' + stamp);
     if (e.start) L.push(`DTSTART${e.start.params}:${e.start.v}`);
     if (e.end) L.push(`DTEND${e.end.params}:${e.end.v}`);
-    L.push('SUMMARY:' + esc(e.summary));
+    L.push('SUMMARY:' + esc((e.cancelled ? '[Отмена] ' : '') + e.summary));
     if (e.location) L.push('LOCATION:' + esc(e.location));
     if (e.description) L.push('DESCRIPTION:' + esc(e.description));
-    L.push(...e.extra);
+    L.push(...(e.cancelled ? e.extra.filter(l => !/^STATUS/i.test(l)) : e.extra));
+    if (e.cancelled) L.push('STATUS:CANCELLED');
     L.push('END:VEVENT');
   }
   L.push('END:VCALENDAR');
   return L.flatMap(fold).join('\r\n') + '\r\n';
 }
-const outName = () => fileName.replace(/\.ics$/i,'') + '-edited.ics';
-
+const outName = () => fileName.replace(/\.ics$/i,'').replace(/-edited$/,'') + '-edited.ics';
 async function shareFile(){
   const text = buildICS();
   for (const type of ['text/calendar','text/plain']){
@@ -343,29 +465,55 @@ async function shareFile(){
   }
   return false;
 }
-$('save').onclick = async () => {
+async function doExport(){
   if (await shareFile()) return;
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  if (ios){ showText(); return; }   /* на iOS ссылка-скачивание открывает файл как текст, поэтому не используем её */
-  const blob = new Blob([buildICS()], { type:'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = outName();
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)){ showText(); return; }
+  const url = URL.createObjectURL(new Blob([buildICS()], { type:'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = outName();
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
-  toast('Если файл не скачался — нажмите «Текст»');
+}
+function exported(){ return events.filter(e => !excluded.has(e.summary)); }
+function diffHTML(){
+  const ex = exported(), cur = new Map(ex.map(e => [okey(e), e])), add = [], chg = [], del = [];
+  cur.forEach((e, k) => { if (!orig[k]) add.push(e); else if (orig[k].s !== sig(e)) chg.push(e); });
+  const hid = new Set(events.filter(e => excluded.has(e.summary)).map(okey));
+  Object.keys(orig).forEach(k => { if (!cur.has(k) && !hid.has(k)) del.push(orig[k].name); });
+  const ul = (t, a, c) => a.length ? `<p style="margin:6px 0 2px;color:${c}"><b>${t}: ${a.length}</b></p><ul class="dl">${a.map(x => `<li>${h(x)}</li>`).join('')}</ul>` : '';
+  const hidden = events.length - ex.length;
+  const note = hidden ? `<p class="sub">Не войдёт в файл: ${hidden} (предметов: ${excluded.size})</p>` : '';
+  const total = add.length + chg.length + del.length;
+  return (total || hidden) ? note + ul('Добавлено', add.map(lbl), '#2e9d58') + ul('Изменено', chg.map(lbl), 'var(--ac)') + ul('Удалено', del, 'var(--red)') : '';
+}
+/* ---------- subjects filter ---------- */
+function renderSubj(){
+  const m = new Map(); events.forEach(e => m.set(e.summary, (m.get(e.summary) || 0) + 1));
+  $('sl').innerHTML = [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([n, c]) =>
+    `<label class="chk"><input type="checkbox" data-n="${h(n)}" ${excluded.has(n) ? '' : 'checked'}><span style="flex:1;word-break:break-word">${h(n || 'Без названия')}</span><span style="color:var(--hint)">${c}</span></label>`).join('');
+}
+$('subj').onclick = () => { renderSubj(); $('sd').showModal(); };
+$('sl').onchange = e => { const n = e.target.dataset.n; e.target.checked ? excluded.delete(n) : excluded.add(n); saveDraft(); render(); };
+$('sall').onclick = () => { excluded.clear(); renderSubj(); saveDraft(); render(); };
+$('snone').onclick = () => { events.forEach(e => excluded.add(e.summary)); renderSubj(); saveDraft(); render(); };
+$('sdone').onclick = () => $('sd').close();
+$('save').onclick = () => {
+  const d = diffHTML();
+  if (!d){ doExport(); return; }
+  $('ddb').innerHTML = d; $('dd').showModal();
 };
+$('ddc').onclick = () => $('dd').close();
+$('ddok').onclick = () => { $('dd').close(); doExport(); };
 function showText(){ $('txa').value = buildICS(); $('txd').showModal(); }
 $('share').onclick = showText;
 $('txc').onclick = async () => {
-  try { await navigator.clipboard.writeText($('txa').value); }
-  catch(e){ $('txa').select(); document.execCommand('copy'); }
+  try { await navigator.clipboard.writeText($('txa').value); } catch(e){ $('txa').select(); document.execCommand('copy'); }
   toast('Скопировано');
 };
 
-function toast(t){
-  const el = $('toast'); el.textContent = t; el.classList.add('on');
-  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2500);
+function toast(t, act){
+  const el = $('toast'); el.textContent = t; el.classList.add('on'); el.classList.toggle('act', !!act);
+  el.onclick = act ? () => { undo(); el.classList.remove('on'); } : null;
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), act ? 5000 : 2500);
 }
 render();
 </script>

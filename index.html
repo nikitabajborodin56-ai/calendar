@@ -150,25 +150,50 @@ function toEvent(items){
 
 /* ---------- date helpers ---------- */
 const isAllDay = d => d && /^\d{8}$/.test(d.v);
-const key = e => e.start ? e.start.v.replace(/Z$/,'') : '';
+const isZ = d => d && /Z$/.test(d.v);
+const useZ = () => events.some(e => e.start && isZ(e.start));
+function calTZ(){
+  for (const l of others){
+    const m = l.match(/^(?:X-WR-TIMEZONE|TIMEZONE-ID):(.+)$/i);
+    if (m){ try { Intl.DateTimeFormat(undefined,{timeZone:m[1].trim()}); return m[1].trim(); } catch(e){} }
+  }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+function wallOf(ms, tz){
+  const p = {};
+  new Intl.DateTimeFormat('en-CA',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+    .formatToParts(new Date(ms)).forEach(x => p[x.type] = x.value);
+  return `${p.year}${p.month}${p.day}T${p.hour}${p.minute}${p.second}`;
+}
+const digitsMs = w => Date.UTC(+w.slice(0,4), +w.slice(4,6)-1, +w.slice(6,8), +w.slice(9,11)||0, +w.slice(11,13)||0, +w.slice(13,15)||0);
+function utcToWall(v, tz){ return wallOf(digitsMs(v.replace(/Z$/,'')), tz); }
+function wallToUtc(w, tz){
+  const want = digitsMs(w); let ms = want;
+  for (let i = 0; i < 3; i++) ms -= digitsMs(wallOf(ms, tz)) - want;
+  return wallOf(ms, 'UTC') + 'Z';
+}
+/* wall-clock digits (YYYYMMDD or YYYYMMDDTHHMMSS) in the calendar's time zone */
+const wall = d => !d ? '' : (isAllDay(d) || !isZ(d)) ? d.v : utcToWall(d.v, calTZ());
+const key = e => wall(e.start);
 function toInput(d){
   if (!d) return '';
-  const v = d.v;
+  const v = wall(d);
   const date = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
   return isAllDay(d) ? date : `${date}T${v.slice(9,11)||'00'}:${v.slice(11,13)||'00'}`;
 }
 function fromInput(val, allDay, old){
   if (!val) return null;
-  const digits = val.replace(/[-:]/g,'').replace('T','T');
+  const digits = val.replace(/[-:]/g,'');
   if (allDay) return { v: digits.slice(0,8), params: ';VALUE=DATE' };
   const keep = old && !isAllDay(old);
-  const z = keep && /Z$/.test(old.v) ? 'Z' : '';
   const tz = keep && /TZID/i.test(old.params) ? old.params : '';
-  return { v: digits + '00' + z, params: tz };
+  const z = keep ? isZ(old) : (useZ());
+  const w = digits + '00';
+  return z ? { v: wallToUtc(w, calTZ()), params: '' } : { v: w, params: tz };
 }
 const fmtDay = k => new Date(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8))
   .toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-const hm = d => d && !isAllDay(d) && d.v.length >= 13 ? `${d.v.slice(9,11)}:${d.v.slice(11,13)}` : '';
+const hm = d => { const v = wall(d); return d && !isAllDay(d) && v.length >= 13 ? `${v.slice(9,11)}:${v.slice(11,13)}` : ''; };
 
 /* ---------- render ---------- */
 function render(){

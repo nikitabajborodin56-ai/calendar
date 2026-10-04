@@ -2,12 +2,13 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>Редактор расписания</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 :root{--bg:var(--tg-theme-bg-color,#fff);--bg2:var(--tg-theme-secondary-bg-color,#f1f3f5);--tx:var(--tg-theme-text-color,#17191c);--hint:var(--tg-theme-hint-color,#6b7280);--ac:var(--tg-theme-button-color,#2f6fed);--act:var(--tg-theme-button-text-color,#fff);--red:#d6403a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
 *,*::before,*::after{box-sizing:inherit}
+html{-webkit-text-size-adjust:100%}
 html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif}
 body{min-height:100vh;padding-bottom:90px}
 button,input,textarea{font:inherit;color:inherit}
@@ -39,12 +40,16 @@ h1{font-size:20px;margin:0 0 2px}
 .btn.p{background:var(--ac);color:var(--act)}.btn.d{background:var(--red);color:#fff}
 .btn:disabled{opacity:.4}
 .empty{padding:32px 16px;text-align:center;color:var(--hint)}
-dialog{border:0;border-radius:16px;padding:0;width:min(520px,94vw);background:var(--bg);color:var(--tx);max-height:92vh}
+dialog{border:0;border-radius:16px 16px 0 0;padding:0;margin:auto auto 0;width:100%;max-width:520px;background:var(--bg);color:var(--tx);max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow:auto;overscroll-behavior:contain}
 dialog::backdrop{background:rgba(0,0,0,.45)}
-form,.dd{padding:18px 16px;display:grid;gap:12px}
+form,.dd{padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));display:grid;gap:8px}
+#f{padding-bottom:0}
 label{display:grid;gap:4px;font-size:13px;color:var(--hint)}
-input[type=text],input[type=number],input[type=date],input[type=datetime-local],textarea{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:10px;width:100%;color:var(--tx)}
-textarea{min-height:70px;resize:vertical}
+input[type=text],input[type=number],input[type=date],input[type=datetime-local],textarea{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:8px 10px;width:100%;min-width:0;min-height:40px;font-size:16px;color:var(--tx)}
+textarea{resize:vertical}
+.f1{display:grid;grid-template-columns:72px 1fr;align-items:center;gap:8px}
+.fbar{display:flex;gap:8px;position:sticky;bottom:0;background:var(--bg);padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px))}
+.fbar .btn{padding:12px 6px}.fbar .btn.p{flex:1.5}
 .chk{display:flex;gap:8px;align-items:center;color:var(--tx);font-size:15px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .dl{font-size:14px;margin:0;padding-left:18px;max-height:34vh;overflow:auto}
@@ -61,7 +66,7 @@ textarea{min-height:70px;resize:vertical}
 </label>
 <div id="draft"></div>
 <div class="tools" id="tools" style="display:none">
-  <input type="search" id="q" placeholder="Поиск: предмет, аудитория">
+  <input type="search" id="q" placeholder="Поиск">
   <button class="sm" id="undo" disabled aria-label="Отменить действие">↶</button>
   <button class="sm" id="subj">Предметы</button>
   <button class="sm" id="selmode">Выбрать</button>
@@ -79,18 +84,21 @@ textarea{min-height:70px;resize:vertical}
 </div>
 
 <dialog id="dlg"><form id="f" method="dialog">
-  <label>Название<input type="text" id="fs" required list="ls"></label>
-  <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
-  <label class="chk"><input type="checkbox" id="fc"> Занятие отменено</label>
+  <label class="f1">Название<input type="text" id="fs" required list="ls"></label>
   <div class="row">
-    <label>Начало<input type="datetime-local" id="fb" required></label>
-    <label>Конец<input type="datetime-local" id="fe"></label>
+    <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
+    <label class="chk"><input type="checkbox" id="fc"> Отменена</label>
   </div>
-  <label>Место<input type="text" id="fl" list="ll"></label>
-  <label>Описание<textarea id="fd"></textarea></label>
-  <label>Повторить ещё на N недель (копии каждую неделю)<input type="number" id="fr" min="0" max="40" value="0"></label>
-  <div class="row"><button type="button" class="btn" id="fcopy">Сделать копию</button><button type="button" class="btn" id="cancel">Отмена</button></div>
-  <button class="btn p" value="ok">Сохранить</button>
+  <label class="f1">Начало<input type="datetime-local" id="fb" required></label>
+  <label class="f1">Конец<input type="datetime-local" id="fe"></label>
+  <label class="f1">Место<input type="text" id="fl" list="ll"></label>
+  <label class="f1">Заметка<textarea id="fd" rows="2"></textarea></label>
+  <label class="f1" title="Создаст копии этой пары на следующие недели">Копии, нед.<input type="number" id="fr" min="0" max="40" value="0" inputmode="numeric"></label>
+  <div class="fbar">
+    <button type="button" class="btn" id="fcopy">Копия</button>
+    <button type="button" class="btn" id="cancel">Отмена</button>
+    <button class="btn p" value="ok">Сохранить</button>
+  </div>
   <datalist id="ls"></datalist><datalist id="ll"></datalist>
 </form></dialog>
 
@@ -370,6 +378,7 @@ function openEditor(id){
   }
   prevStart = $('fb').value;
   $('dlg').showModal();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
 $('add').onclick = () => openEditor(null);
 $('cancel').onclick = () => $('dlg').close();

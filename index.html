@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Редактор расписания</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:var(--tg-theme-bg-color,#fff);
+  --bg2:var(--tg-theme-secondary-bg-color,#f1f3f5);
+  --tx:var(--tg-theme-text-color,#17191c);
+  --hint:var(--tg-theme-hint-color,#6b7280);
+  --ac:var(--tg-theme-button-color,#2f6fed);
+  --act:var(--tg-theme-button-text-color,#fff);
+  --red:#d6403a;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif}
+body{min-height:100vh;padding-bottom:90px}
+button,input,textarea{font:inherit;color:inherit}
+header{padding:16px 16px 8px}
+h1{font-size:20px;margin:0 0 2px}
+.sub{color:var(--hint);font-size:14px;margin:0}
+.drop{margin:12px 16px;padding:28px 16px;border:2px dashed var(--hint);border-radius:14px;text-align:center;background:var(--bg2);cursor:pointer}
+.drop b{display:block;margin-bottom:4px}
+.drop span{color:var(--hint);font-size:14px}
+.drop.over{border-color:var(--ac)}
+.day{position:sticky;top:0;background:var(--bg);padding:14px 16px 6px;font-weight:600;font-size:14px;color:var(--hint);text-transform:capitalize;z-index:1}
+.ev{display:flex;gap:12px;padding:10px 16px;border-top:1px solid var(--bg2);align-items:flex-start}
+.ev .t{width:56px;flex:none;font-variant-numeric:tabular-nums;font-size:14px;color:var(--hint);padding-top:2px}
+.ev .t b{display:block;color:var(--tx);font-size:15px}
+.ev .m{flex:1;min-width:0;cursor:pointer}
+.ev .m strong{display:block;word-break:break-word}
+.ev .m small{display:block;color:var(--hint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.x{border:0;background:none;color:var(--red);font-size:22px;line-height:1;padding:4px 8px;cursor:pointer}
+.bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--bg2)}
+.btn{flex:1;border:0;border-radius:12px;padding:13px 10px;background:var(--bg2);cursor:pointer;font-weight:600}
+.btn.p{background:var(--ac);color:var(--act)}
+.btn:disabled{opacity:.4}
+.empty{padding:32px 16px;text-align:center;color:var(--hint)}
+dialog{border:0;border-radius:16px;padding:0;width:min(520px,94vw);background:var(--bg);color:var(--tx);max-height:92vh}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+form{padding:18px 16px;display:grid;gap:12px}
+label{display:grid;gap:4px;font-size:13px;color:var(--hint)}
+input[type=text],input[type=date],input[type=datetime-local],textarea{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:10px;width:100%;color:var(--tx)}
+textarea{min-height:70px;resize:vertical}
+.chk{display:flex;gap:8px;align-items:center;color:var(--tx);font-size:15px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Редактор расписания</h1>
+  <p class="sub" id="sub">Загрузите файл .ics, чтобы увидеть записи</p>
+</header>
+
+<label class="drop" id="drop" style="display:block">
+  <b>Выбрать файл .ics</b>
+  <span>или перетащите сюда</span>
+  <input type="file" id="file" accept=".ics,text/calendar" hidden>
+</label>
+
+<main id="list"></main>
+
+<div class="bar">
+  <button class="btn" id="add" disabled>+ Запись</button>
+  <button class="btn" id="share" disabled>Поделиться</button>
+  <button class="btn p" id="save" disabled>Скачать .ics</button>
+</div>
+
+<dialog id="dlg">
+  <form id="f" method="dialog">
+    <label>Название<input type="text" id="fs" required></label>
+    <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
+    <div class="row">
+      <label>Начало<input type="datetime-local" id="fb" required></label>
+      <label>Конец<input type="datetime-local" id="fe"></label>
+    </div>
+    <label>Место<input type="text" id="fl"></label>
+    <label>Описание<textarea id="fd"></textarea></label>
+    <div class="row">
+      <button type="button" class="btn" id="cancel">Отмена</button>
+      <button class="btn p" id="ok" value="ok">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
+
+const $ = id => document.getElementById(id);
+let events = [], others = [], fileName = 'schedule.ics', editing = null;
+
+/* ---------- ICS parse ---------- */
+const unesc = s => s.replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');
+const esc = s => s.replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+
+function splitLine(line){
+  const i = line.indexOf(':');
+  if (i < 0) return null;
+  const left = line.slice(0,i), name = left.split(';')[0].toUpperCase();
+  return { name, params: left.slice(name.length), value: line.slice(i+1) };
+}
+
+function parseICS(text){
+  const lines = text.replace(/\r?\n[ \t]/g,'').split(/\r?\n/).filter(l => l.length);
+  const evs = [], oth = [];
+  let cur = null, depth = 0;
+  for (const line of lines){
+    const u = line.toUpperCase();
+    if (!cur){
+      if (u === 'BEGIN:VCALENDAR' || u === 'END:VCALENDAR') continue;
+      if (u === 'BEGIN:VEVENT'){ cur = []; depth = 0; continue; }
+      oth.push(line); continue;
+    }
+    if (u === 'END:VEVENT' && depth === 0){ evs.push(toEvent(cur)); cur = null; continue; }
+    if (u.startsWith('BEGIN:')) depth++;
+    if (u.startsWith('END:')) depth--;
+    cur.push({ line, depth: u.startsWith('BEGIN:') ? depth-1 : u.startsWith('END:') ? depth+1 : depth });
+  }
+  return { evs, oth };
+}
+
+function toEvent(items){
+  const e = { summary:'', location:'', description:'', start:null, end:null, uid:'', extra:[] };
+  for (const it of items){
+    if (it.depth > 0 || /^(BEGIN|END):/i.test(it.line)){ e.extra.push(it.line); continue; }
+    const p = splitLine(it.line);
+    if (!p){ e.extra.push(it.line); continue; }
+    switch (p.name){
+      case 'SUMMARY': e.summary = unesc(p.value); break;
+      case 'LOCATION': e.location = unesc(p.value); break;
+      case 'DESCRIPTION': e.description = unesc(p.value); break;
+      case 'UID': e.uid = p.value; break;
+      case 'DTSTART': e.start = { v:p.value, params:p.params }; break;
+      case 'DTEND': e.end = { v:p.value, params:p.params }; break;
+      default: e.extra.push(it.line);
+    }
+  }
+  return e;
+}
+
+/* ---------- date helpers ---------- */
+const isAllDay = d => d && /^\d{8}$/.test(d.v);
+const key = e => e.start ? e.start.v.replace(/Z$/,'') : '';
+function toInput(d){
+  if (!d) return '';
+  const v = d.v;
+  const date = `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}`;
+  return isAllDay(d) ? date : `${date}T${v.slice(9,11)||'00'}:${v.slice(11,13)||'00'}`;
+}
+function fromInput(val, allDay, old){
+  if (!val) return null;
+  const digits = val.replace(/[-:]/g,'').replace('T','T');
+  if (allDay) return { v: digits.slice(0,8), params: ';VALUE=DATE' };
+  const keep = old && !isAllDay(old);
+  const z = keep && /Z$/.test(old.v) ? 'Z' : '';
+  const tz = keep && /TZID/i.test(old.params) ? old.params : '';
+  return { v: digits + '00' + z, params: tz };
+}
+const fmtDay = k => new Date(+k.slice(0,4), +k.slice(4,6)-1, +k.slice(6,8))
+  .toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const hm = d => d && !isAllDay(d) && d.v.length >= 13 ? `${d.v.slice(9,11)}:${d.v.slice(11,13)}` : '';
+
+/* ---------- render ---------- */
+function render(){
+  const list = $('list');
+  const has = events.length > 0 || others.length > 0 || fileLoaded;
+  ['add','save','share'].forEach(id => $(id).disabled = !fileLoaded);
+  $('sub').textContent = fileLoaded ? `${fileName} · записей: ${events.length}` : 'Загрузите файл .ics, чтобы увидеть записи';
+  $('drop').style.display = fileLoaded ? 'none' : 'block';
+  if (!fileLoaded){ list.innerHTML = ''; return; }
+  if (!events.length){ list.innerHTML = '<div class="empty">Записей нет. Нажмите «+ Запись».</div>'; return; }
+  const sorted = events.map((e,i)=>({e,i})).sort((a,b)=> key(a.e).localeCompare(key(b.e)));
+  let html = '', day = '';
+  for (const {e,i} of sorted){
+    const d = key(e).slice(0,8);
+    if (d !== day){ day = d; html += `<div class="day">${d ? fmtDay(d) : 'Без даты'}</div>`; }
+    const t1 = hm(e.start), t2 = hm(e.end);
+    const time = t1 ? `<b>${t1}</b>${t2 ? t2 : ''}` : '<b>весь день</b>';
+    html += `<div class="ev"><div class="t">${time}</div>
+      <div class="m" data-i="${i}"><strong>${h(e.summary || 'Без названия')}</strong>
+      ${e.location ? `<small>${h(e.location)}</small>` : ''}</div>
+      <button class="x" data-del="${i}" aria-label="Удалить">×</button></div>`;
+  }
+  list.innerHTML = html;
+}
+const h = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let fileLoaded = false;
+
+/* ---------- load ---------- */
+function load(file){
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    const { evs, oth } = parseICS(String(r.result));
+    events = evs; others = oth; fileName = file.name || 'schedule.ics';
+    fileLoaded = true; render();
+    toast(evs.length ? 'Файл загружен' : 'Записей в файле не найдено');
+  };
+  r.readAsText(file);
+}
+$('file').onchange = e => load(e.target.files[0]);
+const drop = $('drop');
+['dragover','dragenter'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => load(e.dataTransfer.files[0]));
+
+/* ---------- edit ---------- */
+function setType(){
+  const a = $('fa').checked;
+  $('fb').type = a ? 'date' : 'datetime-local';
+  $('fe').type = a ? 'date' : 'datetime-local';
+}
+$('fa').onchange = () => {
+  const b = $('fb').value, e = $('fe').value;
+  setType();
+  $('fb').value = b ? b.slice(0,10) + ($('fa').checked ? '' : 'T09:00') : '';
+  $('fe').value = e ? e.slice(0,10) + ($('fa').checked ? '' : 'T10:00') : '';
+};
+function openEditor(i){
+  editing = i;
+  const e = i == null ? null : events[i];
+  $('fa').checked = e ? isAllDay(e.start) : false;
+  setType();
+  $('fs').value = e ? e.summary : '';
+  $('fl').value = e ? e.location : '';
+  $('fd').value = e ? e.description : '';
+  if (e){ $('fb').value = toInput(e.start); $('fe').value = toInput(e.end); }
+  else {
+    const n = new Date(); n.setMinutes(0,0,0); n.setHours(n.getHours()+1);
+    const p = x => String(x).padStart(2,'0');
+    const f = d => `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:00`;
+    $('fb').value = f(n); n.setHours(n.getHours()+1); $('fe').value = f(n);
+  }
+  $('dlg').showModal();
+}
+$('add').onclick = () => openEditor(null);
+$('cancel').onclick = () => $('dlg').close();
+$('f').onsubmit = () => {
+  const old = editing == null ? null : events[editing];
+  const all = $('fa').checked;
+  const e = old || { extra:[], uid:'' };
+  e.summary = $('fs').value.trim();
+  e.location = $('fl').value.trim();
+  e.description = $('fd').value;
+  e.start = fromInput($('fb').value, all, old && old.start);
+  e.end = fromInput($('fe').value, all, old && old.end);
+  if (!old) events.push(e);
+  render(); toast('Сохранено');
+};
+$('list').onclick = ev => {
+  const del = ev.target.closest('[data-del]');
+  if (del){
+    const i = +del.dataset.del;
+    if (confirm(`Удалить «${events[i].summary || 'Без названия'}»?`)){ events.splice(i,1); render(); }
+    return;
+  }
+  const m = ev.target.closest('[data-i]');
+  if (m) openEditor(+m.dataset.i);
+};
+
+/* ---------- export ---------- */
+function fold(line){
+  const out = []; let s = line;
+  while (s.length > 74){ out.push(s.slice(0,74)); s = ' ' + s.slice(74); }
+  out.push(s); return out;
+}
+function buildICS(){
+  const L = ['BEGIN:VCALENDAR'];
+  const has = n => others.some(l => l.toUpperCase().startsWith(n));
+  if (!has('VERSION')) L.push('VERSION:2.0');
+  if (!has('PRODID')) L.push('PRODID:-//Telegram ICS Editor//RU');
+  L.push(...others);
+  const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  for (const e of events){
+    L.push('BEGIN:VEVENT');
+    L.push('UID:' + (e.uid || (crypto.randomUUID ? crypto.randomUUID() : Date.now()+Math.random()) + '@ics-editor'));
+    if (!e.extra.some(l => /^DTSTAMP/i.test(l))) L.push('DTSTAMP:' + stamp);
+    if (e.start) L.push(`DTSTART${e.start.params}:${e.start.v}`);
+    if (e.end) L.push(`DTEND${e.end.params}:${e.end.v}`);
+    L.push('SUMMARY:' + esc(e.summary));
+    if (e.location) L.push('LOCATION:' + esc(e.location));
+    if (e.description) L.push('DESCRIPTION:' + esc(e.description));
+    L.push(...e.extra);
+    L.push('END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return L.flatMap(fold).join('\r\n') + '\r\n';
+}
+const outName = () => fileName.replace(/\.ics$/i,'') + '-edited.ics';
+
+$('save').onclick = () => {
+  const blob = new Blob([buildICS()], { type:'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = outName();
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast('Если файл не скачался — нажмите «Поделиться»');
+};
+$('share').onclick = async () => {
+  const file = new File([buildICS()], outName(), { type:'text/calendar' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title: file.name });
+    } else {
+      await navigator.clipboard.writeText(buildICS());
+      toast('Текст .ics скопирован в буфер');
+    }
+  } catch(e){ /* cancelled */ }
+};
+
+function toast(t){
+  const el = $('toast'); el.textContent = t; el.classList.add('on');
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 2500);
+}
+render();
+</script>
+</body>
+</html>

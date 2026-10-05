@@ -59,6 +59,7 @@ textarea{resize:vertical}
 .day.past{opacity:.55}.day,.wk{scroll-margin-top:96px}.wk{padding:14px 16px 0;font-size:12px;color:var(--hint);border-top:1px solid var(--bg2);margin-top:8px}.wk+.day{padding-top:2px}
 .drop:focus-visible,.ev .m:focus-visible,#sub:focus-visible{outline:2px solid var(--ac);outline-offset:2px}#sub.lnk{cursor:pointer;text-decoration:underline dotted}
 select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:8px 10px;width:100%;min-height:40px;font-size:16px;color:var(--tx)}
+.tgm #save{display:none}
 </style>
 </head>
 <body>
@@ -76,6 +77,7 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <button class="sm" id="subj">Предметы</button>
   <button class="sm" id="selmode">Выбрать</button>
   <button class="sm" id="closef" aria-label="Закрыть файл">Закрыть</button>
+  <button class="sm" id="more">Ещё</button>
 </div>
 <main id="list"></main>
 <div class="bar" id="bar1">
@@ -120,6 +122,7 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <label>Новое название (пусто — не менять)<input type="text" id="bn"></label>
   <label>Место (пусто — не менять)<input type="text" id="bl" list="ll"></label>
   <label>Сдвиг времени, мин (±)<input type="number" id="bs" value="0" step="5" inputmode="numeric"></label>
+  <label>Цвет предмета<input type="color" id="bk" value="#2f6fed" style="width:100%;height:40px;border:0;padding:0"></label>
   <div class="row"><button class="btn" id="bc">Отмена</button><button class="btn p" id="bok">Применить</button></div></div></dialog>
 
 <dialog id="dd"><div class="dd">
@@ -131,6 +134,19 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <label>Содержимое файла .ics<textarea id="txa" readonly style="min-height:240px;font:12px/1.3 monospace"></textarea></label>
   <div class="row"><button type="button" class="btn p" id="txc">Копировать</button><button class="btn" value="x">Закрыть</button></div>
 </form></dialog>
+<dialog id="md"><div class="dd"><b>Ещё</b>
+  <label>Первая неделя семестра (любая дата этой недели)<input type="date" id="ms"></label>
+  <label>Показывать тип пар<select id="mt"><option value="">все</option><option value="лек">лекции</option><option value="пр">практики</option><option value="лаб">лабораторные</option></select></label>
+  <label>Напоминание за, мин<input type="number" id="ma" value="15" min="0" inputmode="numeric"></label>
+  <div class="row"><button class="btn" id="mad">Добавить найденным</button><button class="btn" id="mar">Убрать у найденных</button></div>
+  <label>Заменить в поле<select id="rf"><option value="location">Место</option><option value="summary">Название</option><option value="description">Заметка</option></select></label>
+  <div class="row"><input type="text" id="rq" placeholder="Найти"><input type="text" id="rr" placeholder="Заменить на"></div>
+  <button class="btn" id="rgo">Заменить везде</button>
+  <label class="btn" style="display:block;text-align:center;cursor:pointer;color:var(--tx);font-size:16px">Обновить из нового .ics<input type="file" id="uf" accept=".ics,text/calendar" hidden></label>
+  <button class="btn" id="mpr">Проблемы и статистика</button>
+  <button class="btn p" id="mdn">Готово</button></div></dialog>
+
+<dialog id="pd"><div class="dd"><b>Проблемы и статистика</b><div id="pb" style="max-height:60vh;overflow:auto"></div><button class="btn p" id="pdn">Готово</button></div></dialog>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -142,7 +158,7 @@ const hap = (t, k) => { try { tg.HapticFeedback[t](k); } catch(e){} };
 const $ = id => document.getElementById(id);
 const h = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let events = [], others = [], fileName = 'schedule.ics', fileLoaded = false;
-let redoStack = [], badSet = new Set(), conflictOnly = false, bulkSubj = '';
+let redoStack = [], badSet = new Set(), conflictOnly = false, bulkSubj = '', typeFilter = '', cfg = { start:'', colors:{} };
 let nid = 0, editing = null, orig = {}, undoStack = [], sel = new Set(), selMode = false, scrolled = false, prevStart = '', excluded = new Set();
 
 /* ---------- ICS parse ---------- */
@@ -248,11 +264,16 @@ const hm = d => { const v = wall(d); return d && !isAllDay(d) && v.length >= 13 
 
 /* ---------- state, undo, draft ---------- */
 const okey = e => e.uid || 'n' + e.id;
-const sig = e => JSON.stringify([e.summary, e.location, e.description, e.start, e.end, e.cancelled]);
+const alarmLines = (x, keep) => { let d = 0; return x.filter(l => { if (/^BEGIN:VALARM/i.test(l)) d = 1; const a = d; if (/^END:VALARM/i.test(l)) d = 0; return keep ? a : !a; }); };
+const alarmSig = e => alarmLines(e.extra, true).filter(l => /^TRIGGER/i.test(l)).join('|');
+const sig = e => JSON.stringify([e.summary, e.location, e.description, e.start, e.end, e.cancelled].concat(alarmSig(e) ? [alarmSig(e)] : []));
+const typeOf = e => { const t = (e.summary + ' ' + e.description).toLowerCase(); return /лаб/.test(t) ? 'лаб' : /практ|семинар|(^|[^а-яё])(пр|пз)([^а-яё]|$)/.test(t) ? 'пр' : /лекц|(^|[^а-яё])лек([^а-яё]|$)/.test(t) ? 'лек' : ''; };
+const wkNum = dk => cfg.start ? Math.round((wkOf(dk) - wkOf(cfg.start.replace(/-/g,''))) / 6048e5) + 1 : 0;
+const wkName = dk => { const n = wkNum(dk); return n >= 1 ? `нед. ${n} · ${n % 2 ? 'нечётная' : 'чётная'}` : `нед. ${isoWeek(dk)} (ISO)`; };
 const byId = id => events.find(e => e.id === id);
 function snapOrig(){ orig = {}; events.forEach(e => orig[okey(e)] = { s: sig(e), name: lbl(e) }); }
 function saveDraft(){
-  try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded] })); } catch(e){}
+  try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded], cfg })); } catch(e){}
 }
 function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft')); } catch(e){ return null; } }
 const snap = () => JSON.stringify({ e: events, x: [...excluded] });
@@ -289,12 +310,13 @@ function overlaps(){
 }
 function visible(){
   const q = $('q').value.trim().toLowerCase();
-  return events.filter(e => (!q || (e.summary + ' ' + e.location + ' ' + e.description).toLowerCase().includes(q)) && (!conflictOnly || badSet.has(e.id)));
+  return events.filter(e => (!q || (e.summary + ' ' + e.location + ' ' + e.description).toLowerCase().includes(q)) && (!conflictOnly || badSet.has(e.id)) && (!typeFilter || typeOf(e) === typeFilter));
 }
 
 /* ---------- render ---------- */
 function render(){
   const bad = badSet = overlaps(), n = events.length;
+  syncTg();
   if (conflictOnly && !bad.size) conflictOnly = false;
   ['add','save','share'].forEach(id => $(id).disabled = !fileLoaded);
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
@@ -322,15 +344,15 @@ function render(){
     const dk = key(e).slice(0,8);
     if (dk !== day){
       day = dk;
-      if (dk){ const w = wkOf(dk), wl = w.toDateString(); if (wl !== wk){ wk = wl; const w2 = new Date(w); w2.setDate(w2.getDate() + 6); const f = d => d.toLocaleDateString('ru', { day:'numeric', month:'short' }); html += `<div class="wk">${f(w)} – ${f(w2)} · нед. ${isoWeek(dk)}</div>`; } }
+      if (dk){ const w = wkOf(dk), wl = w.toDateString(); if (wl !== wk){ wk = wl; const w2 = new Date(w); w2.setDate(w2.getDate() + 6); const f = d => d.toLocaleDateString('ru', { day:'numeric', month:'short' }); html += `<div class="wk">${f(w)} – ${f(w2)} · ${wkName(dk)}</div>`; } }
       html += `<div class="day ${dk && dk < tk ? 'past' : ''} ${dk === tk ? 'today' : ''}" data-day="${dk}">${dk ? fmtDay(dk) : 'Без даты'}${dk === tk ? ' · сегодня' : ''}</div>`;
     }
     const t1 = hm(e.start), t2 = hm(e.end);
-    html += `<div class="ev ${bad.has(e.id) ? 'bad' : ''} ${e.cancelled ? 'cx' : ''} ${excluded.has(e.summary) ? 'ex' : ''}" style="border-left-color:hsl(${hue(e.summary)} 60% 50%)">
+    html += `<div class="ev ${bad.has(e.id) ? 'bad' : ''} ${e.cancelled ? 'cx' : ''} ${excluded.has(e.summary) ? 'ex' : ''}" style="border-left-color:${cfg.colors[e.summary] || `hsl(${hue(e.summary)} 60% 50%)`}">
       ${selMode ? `<input type="checkbox" data-s="${e.id}" ${sel.has(e.id) ? 'checked' : ''}>` : ''}
       <div class="t">${t1 ? `<b>${t1}</b>${t2}` : '<b>весь день</b>'}</div>
       <div class="m" data-i="${e.id}" role="button" tabindex="0"><strong>${h(e.summary || 'Без названия')}</strong>
-      ${e.location ? `<small>${h(e.location)}</small>` : ''}${bad.has(e.id) ? '<span class="w">⚠ пересекается с другой парой</span>' : ''}${e.extra.some(l => /^RRULE/i.test(l)) ? '<small>🔁 повторяющееся событие</small>' : ''}</div>
+      ${e.location || typeOf(e) ? `<small>${[typeOf(e), e.location].filter(Boolean).map(h).join(' · ')}</small>` : ''}${bad.has(e.id) ? '<span class="w">⚠ пересекается с другой парой</span>' : ''}${e.extra.some(l => /^RRULE/i.test(l)) ? '<small>🔁 повторяющееся событие</small>' : ''}</div>
       ${selMode ? '' : `<button class="x c" data-cx="${e.id}" aria-label="Отменить пару">⊘</button><button class="x" data-del="${e.id}" aria-label="Удалить">×</button>`}</div>`;
   }
   list.innerHTML = html;
@@ -349,8 +371,8 @@ const p2 = n => String(n).padStart(2,'0');
 $('q').oninput = () => { clearTimeout(render.t); render.t = setTimeout(render, 150); };
 
 /* ---------- load ---------- */
-function setData(evs, oth, name, o, ex){
-  excluded = new Set(ex || []); events = evs; others = oth; fileName = name; fileLoaded = true; undoStack = []; sel.clear(); selMode = false; scrolled = false;
+function setData(evs, oth, name, o, ex, c){
+  excluded = new Set(ex || []); if (c) cfg = Object.assign({ start:'', colors:{} }, c); events = evs; others = oth; fileName = name; fileLoaded = true; undoStack = []; sel.clear(); selMode = false; scrolled = false;
   nid = Math.max(nid, ...events.map(e => e.id), 0);
   redoStack = []; conflictOnly = false; tgDirty(false);
   if (o) orig = o;
@@ -382,7 +404,7 @@ const drop = $('drop');
 drop.addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
 $('draft').onclick = e => {
   if (!e.target.closest('#resume')) return;
-  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded);
+  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded, d.cfg);
 };
 
 /* ---------- editor ---------- */
@@ -572,12 +594,14 @@ $('snone').onclick = () => { mutate(() => events.forEach(e => excluded.add(e.sum
 $('sl').onclick = e => {
   const b = e.target.closest('[data-b]'); if (!b) return;
   bulkSubj = b.dataset.b; $('bt').textContent = 'Все пары: ' + (bulkSubj || 'Без названия');
-  $('bn').value = bulkSubj; $('bl').value = ''; $('bs').value = 0; $('bd').showModal();
+  $('bn').value = bulkSubj; $('bl').value = ''; $('bs').value = 0; $('bk').dataset.on = ''; $('bk').value = cfg.colors[bulkSubj] || '#2f6fed'; $('bd').showModal();
 };
 $('bc').onclick = () => $('bd').close();
 $('bok').onclick = () => {
   const nn = $('bn').value.trim(), loc = $('bl').value.trim(), m = +$('bs').value || 0;
   let cnt = 0;
+  if (nn && nn !== bulkSubj && cfg.colors[bulkSubj]){ cfg.colors[nn] = cfg.colors[nn] || cfg.colors[bulkSubj]; delete cfg.colors[bulkSubj]; }
+  if ($('bk').dataset.on) cfg.colors[nn || bulkSubj] = $('bk').value;
   mutate(() => {
     events.forEach(e => {
       if (e.summary !== bulkSubj) return; cnt++;
@@ -608,6 +632,111 @@ function toast(t, act){
   el.onclick = act ? () => { undo(); el.classList.remove('on'); } : null;
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), act ? 5000 : 2500);
 }
+/* ---------- меню, замена, напоминания ---------- */
+$('bk').oninput = () => { $('bk').dataset.on = '1'; };
+$('more').onclick = () => { $('ms').value = cfg.start; $('mt').value = typeFilter; $('md').showModal(); };
+$('mdn').onclick = () => $('md').close();
+$('ms').onchange = () => { cfg.start = $('ms').value; saveDraft(); render(); };
+$('mt').onchange = () => { typeFilter = $('mt').value; render(); };
+const setAlarm = on => {
+  const m = Math.max(0, +$('ma').value || 0), ids = new Set(visible().map(e => e.id));
+  mutate(() => events.forEach(e => { if (ids.has(e.id)) e.extra = alarmLines(e.extra, false).concat(on ? ['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:Напоминание','TRIGGER:-PT' + m + 'M','END:VALARM'] : []); }));
+  toast((on ? 'Напоминание добавлено: ' : 'Напоминания убраны: ') + ids.size + ' · Отменить', true);
+};
+$('mad').onclick = () => setAlarm(true);
+$('mar').onclick = () => setAlarm(false);
+$('rgo').onclick = () => {
+  const f = $('rf').value, q = $('rq').value, r = $('rr').value; if (!q) return;
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); let n = 0;
+  mutate(() => events.forEach(e => { if (e[f].toLowerCase().includes(q.toLowerCase())){ e[f] = e[f].replace(re, () => r); n++; } }));
+  toast(`Изменено записей: ${n} · Отменить`, true);
+};
+
+/* ---------- обновление из нового файла с переносом правок ---------- */
+const mkey = (t, d) => t + '|' + wall(d);
+function mergeFile(text){
+  const { evs, oth } = parseICS(text);
+  if (!evs.length){ toast('В файле нет записей'); return; }
+  const byUid = new Map(), byKey = new Map(), used = new Set();
+  evs.forEach(n => { if (n.uid) byUid.set(n.uid, n); const k = mkey(n.summary, n.start); byKey.set(k, (byKey.get(k) || []).concat(n)); });
+  const cur = new Map(events.map(e => [okey(e), e])), out = [], no = {}, st = { carried:0, kept:0, gone:0, add:0, del:0 };
+  const push = (m, n) => { out.push(m); no[okey(m)] = { s: sig(n), name: lbl(n) }; };
+  for (const [k, o] of Object.entries(orig)){
+    const b = JSON.parse(o.s), c = cur.get(k);
+    let n = byUid.get(k); if (n && used.has(n)) n = null;
+    if (!n) n = (byKey.get(mkey(b[0], b[3])) || []).find(x => !used.has(x));
+    if (n) used.add(n);
+    if (!c){ if (n) st.del++; continue; }
+    if (!n){ if (sig(c) !== o.s){ out.push(c); st.kept++; } else st.gone++; continue; }
+    const m = Object.assign({}, n, { id: c.id, uid: n.uid || c.uid, noconf: c.noconf });
+    ['summary','location','description','start','end','cancelled'].forEach((f, i) => { if (JSON.stringify(c[f]) !== JSON.stringify(b[i])){ m[f] = c[f]; st.carried++; } });
+    if (alarmSig(c) !== (b[6] || '')) m.extra = alarmLines(n.extra, false).concat(alarmLines(c.extra, true));
+    push(m, n);
+  }
+  events.filter(e => !orig[okey(e)]).forEach(e => out.push(e));
+  evs.filter(n => !used.has(n)).forEach(n => { if (!n.uid) n.uid = newUid(); push(n, n); st.add++; });
+  if (!confirm(`Новых пар: ${st.add}\nУбрано из расписания: ${st.gone}\nВаших правок перенесено: ${st.carried + st.kept}\nВаших удалений сохранено: ${st.del}\n\nПрименить?`)) return;
+  events = out; others = oth; orig = no; undoStack = []; redoStack = []; sel.clear(); conflictOnly = false;
+  nid = Math.max(nid, ...events.map(e => e.id)); saveDraft(); render(); toast('Расписание обновлено');
+}
+$('uf').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader(); r.onload = () => { $('md').close(); mergeFile(String(r.result)); $('uf').value = ''; }; r.readAsText(f);
+};
+
+/* ---------- проблемы и статистика ---------- */
+function probHTML(){
+  const T = events.filter(e => !e.cancelled && !excluded.has(e.summary) && span(e)), P = {}, seen = new Set(), byDay = {};
+  const add = (t, e, x) => (P[t] = P[t] || []).push([e.id, lbl(e) + (x || '')]);
+  T.forEach(e => {
+    const [a, b] = span(e), w = wall(e.start), hh = +w.slice(9,11), dk = w.slice(0,8), k = e.summary + '|' + w + '|' + (e.end ? wall(e.end) : '');
+    if (!e.location) add('Без места', e);
+    if (b <= a) add('Нулевая длительность', e);
+    if (hh < 7 || hh >= 22) add('Ночью (до 7 / после 22)', e);
+    if (new Date(a).getUTCDay() === 0) add('В воскресенье', e);
+    if (seen.has(k)) add('Дубли', e); else seen.add(k);
+    (byDay[dk] = byDay[dk] || []).push(e);
+  });
+  Object.values(byDay).forEach(d => {
+    d.sort((x, y) => span(x)[0] - span(y)[0]); let end = span(d[0])[1];
+    for (let i = 1; i < d.length; i++){
+      const [a, b] = span(d[i]);
+      if (a - end > 18e6) add('Окна больше 3 ч', d[i], ` (окно ${Math.round((a - end) / 36e5 * 10) / 10} ч)`);
+      end = Math.max(end, b);
+    }
+  });
+  const sj = new Map(), wk = new Map();
+  T.forEach(e => {
+    const [a, b] = span(e), hrs = (b - a) / 36e6 * 10, dk = wall(e.start).slice(0,8), t = wkOf(dk).getTime();
+    sj.set(e.summary, (sj.get(e.summary) || 0) + hrs / 10);
+    const w = wk.get(t) || [wkName(dk), 0]; w[1] += hrs / 10; wk.set(t, w);
+  });
+  const bars = rows => { const mx = Math.max(...rows.map(r => r[1]), 1); return rows.map(r => `<div style="font-size:13px;margin:4px 0"><div style="display:flex;justify-content:space-between;gap:8px"><span>${h(r[0])}</span><span>${Math.round(r[1] * 10) / 10} ч</span></div><div style="height:5px;border-radius:3px;background:var(--ac);width:${r[1] / mx * 100}%"></div></div>`).join(''); };
+  const sec = Object.entries(P).map(([t, a]) => `<p style="margin:8px 0 2px;color:var(--red)"><b>${t}: ${a.length}</b></p><ul class="dl">${a.map(x => `<li data-o="${x[0]}" style="cursor:pointer">${h(x[1])}</li>`).join('')}</ul>`).join('') || '<p class="sub">Проблем не найдено</p>';
+  return sec + '<p style="margin:14px 0 2px"><b>Часы по предметам</b></p>' + bars([...sj].map(([n, v]) => [n || 'Без названия', v]).sort((x, y) => y[1] - x[1]))
+    + '<p style="margin:14px 0 2px"><b>Нагрузка по неделям</b></p>' + bars([...wk].sort((x, y) => x[0] - y[0]).map(x => x[1]));
+}
+$('mpr').onclick = () => { $('md').close(); $('pb').innerHTML = probHTML(); $('pd').showModal(); };
+$('pb').onclick = e => { const li = e.target.closest('[data-o]'); if (li){ $('pd').close(); openEditor(+li.dataset.o); } };
+$('pdn').onclick = () => $('pd').close();
+
+/* ---------- Telegram: MainButton / BackButton ---------- */
+function syncTg(){
+  if (!tg || !tg.initData) return;
+  document.body.classList.add('tgm');
+  const open = [...document.querySelectorAll('dialog')].some(d => d.open);
+  try {
+    if (fileLoaded && !selMode && !open){ tg.MainButton.setText('Сохранить .ics'); tg.MainButton.show(); } else tg.MainButton.hide();
+    open ? tg.BackButton.show() : tg.BackButton.hide();
+  } catch(e){}
+}
+if (tg && tg.initData) try {
+  tg.MainButton.onClick(() => $('save').click());
+  tg.BackButton.onClick(() => { const d = [...document.querySelectorAll('dialog')].filter(x => x.open).pop(); if (d) d.close(); });
+} catch(e){}
+const _sm = HTMLDialogElement.prototype.showModal;
+HTMLDialogElement.prototype.showModal = function(){ _sm.call(this); syncTg(); };
+document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', syncTg));
 render();
 </script>
 </body>

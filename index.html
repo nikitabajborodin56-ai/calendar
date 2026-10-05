@@ -17,7 +17,7 @@ h1{font-size:20px;margin:0 0 2px}
 .sub{color:var(--hint);font-size:14px;margin:0}
 .drop{margin:12px 16px;padding:28px 16px;border:2px dashed var(--hint);border-radius:14px;text-align:center;background:var(--bg2);cursor:pointer;display:block}
 .drop b{display:block;margin-bottom:4px}.drop span{color:var(--hint);font-size:14px}
-.tools{display:flex;gap:8px;padding:4px 16px 8px;position:sticky;top:0;background:var(--bg);z-index:2}
+.sticky{position:sticky;top:0;background:var(--bg);z-index:2;padding-top:4px}.tools{display:flex;gap:8px;padding:4px 16px 8px}
 .tools input[type=search]{flex:1;min-width:0;border:0;background:var(--bg2);border-radius:10px;padding:9px 12px}
 .sm{border:0;background:var(--bg2);border-radius:10px;padding:0 12px;cursor:pointer;white-space:nowrap}
 .sm:disabled{opacity:.4}
@@ -56,6 +56,28 @@ textarea{resize:vertical}
 .dl li{margin:2px 0;word-break:break-word}
 .toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9}
 .toast.on{opacity:1}.toast.act{pointer-events:auto;cursor:pointer}
+.ev{display:flex;gap:10px;margin:6px 12px;padding:12px 10px 12px 16px;border-left:0;border-radius:14px;background:var(--bg2);box-shadow:inset 4px 0 0 var(--c,var(--hint));align-items:center;touch-action:pan-y;transition:transform .15s,background .15s}
+.ev+.ev{margin-top:6px}
+.ev.bad{background:rgba(214,64,58,.14)}
+.ev[data-sw=del]{background:rgba(214,64,58,.32)}.ev[data-sw=cx]{background:rgba(130,130,130,.35)}
+.meta{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:4px}
+.pill{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;padding:2px 9px;border-radius:999px;background:var(--bg);color:var(--tx)}
+.meta small{white-space:normal}
+.day{display:flex;justify-content:space-between;align-items:baseline;padding:16px 18px 4px;text-transform:none;cursor:pointer;font-size:15px}
+.day span:first-child::first-letter{text-transform:uppercase}
+.day.today{color:var(--ac)}.cnt{font-weight:400;font-size:13px}
+.day{scroll-margin-top:112px}
+.strip{display:flex;gap:6px;overflow-x:auto;padding:0 16px 8px;scrollbar-width:none}.strip::-webkit-scrollbar,.slots::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;border-radius:12px;background:var(--bg2);padding:5px 10px;min-width:44px;text-align:center;cursor:pointer;line-height:1.15}
+.chip span{display:block;font-size:11px;color:var(--hint);text-transform:uppercase}.chip b{font-size:16px}
+.chip.t{background:var(--ac);color:var(--act)}.chip.t span{color:var(--act)}
+.slots{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.slots .chip{padding:7px 11px;font-size:13px;white-space:nowrap}
+.past{display:block;margin:10px auto;border:0;background:none;color:var(--ac);font-size:14px;cursor:pointer}
+.x{display:none}@media (hover:hover){.x{display:block}}
+.empty .ic{font-size:44px;margin-bottom:6px}
+.toast{max-width:90vw;text-align:center}
+dialog[open]{animation:up .22s ease-out}@keyframes up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
@@ -65,17 +87,18 @@ textarea{resize:vertical}
   <input type="file" id="file" accept=".ics,text/calendar" hidden>
 </label>
 <div id="draft"></div>
-<div class="tools" id="tools" style="display:none">
+<div class="sticky" id="sticky" style="display:none"><div class="tools" id="tools">
   <input type="search" id="q" placeholder="Поиск">
   <button class="sm" id="undo" disabled aria-label="Отменить действие">↶</button>
   <button class="sm" id="subj">Предметы</button>
   <button class="sm" id="selmode">Выбрать</button>
 </div>
+<div class="strip" id="strip"></div></div>
 <main id="list"></main>
 <div class="bar" id="bar1">
   <button class="btn" id="add" disabled>+ Запись</button>
   <button class="btn" id="share" disabled>Текст</button>
-  <button class="btn p" id="save" disabled>Сохранить .ics</button>
+  <button class="btn p" id="save" disabled>Сохранить</button>
 </div>
 <div class="bar" id="bar2" style="display:none">
   <button class="btn" id="selall">Все найденные</button>
@@ -89,6 +112,7 @@ textarea{resize:vertical}
     <label class="chk"><input type="checkbox" id="fa"> Весь день</label>
     <label class="chk"><input type="checkbox" id="fc"> Отменена</label>
   </div>
+  <div class="slots" id="slots"></div>
   <label class="f1">Начало<input type="datetime-local" id="fb" required></label>
   <label class="f1">Конец<input type="datetime-local" id="fe"></label>
   <label class="f1">Место<input type="text" id="fl" list="ll"></label>
@@ -236,7 +260,8 @@ function saveDraft(){
 function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft')); } catch(e){ return null; } }
 function mutate(fn){
   undoStack.push(JSON.stringify(events)); if (undoStack.length > 30) undoStack.shift();
-  fn(); saveDraft(); render();
+  fn(); saveDraft(); render(); buzz();
+  try { tg.enableClosingConfirmation(); } catch(e){}
 }
 function undo(){
   if (!undoStack.length) return;
@@ -265,11 +290,13 @@ function visible(){
 }
 
 /* ---------- render ---------- */
+const collapsed = new Set(); let showPast = false;
+const wd = dk => new Date(+dk.slice(0,4), +dk.slice(4,6)-1, +dk.slice(6,8)).toLocaleDateString('ru', { weekday:'short' });
 function render(){
   const bad = overlaps(), n = events.length;
   ['add','save','share'].forEach(id => $(id).disabled = !fileLoaded);
   $('undo').disabled = !undoStack.length;
-  $('tools').style.display = fileLoaded ? 'flex' : 'none';
+  $('sticky').style.display = fileLoaded ? 'block' : 'none';
   $('drop').style.display = fileLoaded ? 'none' : 'block';
   $('bar1').style.display = selMode ? 'none' : 'flex';
   $('bar2').style.display = selMode ? 'flex' : 'none';
@@ -278,37 +305,54 @@ function render(){
   $('selmode').textContent = selMode ? 'Отмена' : 'Выбрать';
   $('subj').textContent = excluded.size ? 'Предметы •' : 'Предметы';
   $('sub').textContent = fileLoaded ? `${fileName} · записей: ${n}` + (excluded.size ? ` · в файл: ${exported().length}` : '') + (bad.size ? ` · с пересечениями: ${bad.size}` : '') : 'Загрузите файл .ics, чтобы увидеть записи';
+  if (useMain){ fileLoaded ? tg.MainButton.show() : tg.MainButton.hide(); }
+  $('save').style.display = useMain ? 'none' : '';
   const d = loadDraft();
   $('draft').innerHTML = !fileLoaded && d && d.events && d.events.length
     ? `<div class="drop" id="resume" style="border-style:solid"><b>Продолжить правки</b><span>${h(d.fileName)} · записей: ${d.events.length}</span></div>` : '';
   const list = $('list');
-  if (!fileLoaded){ list.innerHTML = ''; return; }
-  const vis = visible();
-  if (!vis.length){ list.innerHTML = `<div class="empty">${n ? 'Ничего не найдено.' : 'Записей нет. Нажмите «+ Запись».'}</div>`; return; }
+  if (!fileLoaded){ list.innerHTML = ''; $('strip').innerHTML = ''; return; }
   const today = new Date(), tk = `${today.getFullYear()}${p2(today.getMonth()+1)}${p2(today.getDate())}`;
-  vis.sort((a, b) => key(a).localeCompare(key(b)));
-  let html = '', day = '';
-  for (const e of vis){
-    const dk = key(e).slice(0,8);
-    if (dk !== day){
-      day = dk;
-      html += `<div class="day ${dk === tk ? 'today' : ''}" data-day="${dk}">${dk ? fmtDay(dk) : 'Без даты'}${dk === tk ? ' · сегодня' : ''}</div>`;
+  let vis = visible().sort((a, b) => key(a).localeCompare(key(b)));
+  const q = $('q').value.trim(), hasFuture = vis.some(e => key(e).slice(0,8) >= tk);
+  let hiddenPast = 0;
+  if (!showPast && !q && hasFuture){ const f = vis.filter(e => key(e).slice(0,8) >= tk); hiddenPast = vis.length - f.length; vis = f; }
+  if (!vis.length){
+    list.innerHTML = n ? '<div class="empty">Ничего не найдено</div>' : '<div class="empty"><div class="ic">🗓</div>Записей пока нет<br>Нажмите «+ Запись»</div>';
+    $('strip').innerHTML = ''; return;
+  }
+  const names = [...new Set(events.map(e => e.summary))].sort();
+  const col = s => `hsl(${(names.indexOf(s) * 137.5 + 20) % 360} 48% 52%)`;
+  const days = new Map();
+  vis.forEach(e => { const k = key(e).slice(0,8); if (!days.has(k)) days.set(k, []); days.get(k).push(e); });
+  let html = hiddenPast ? `<button class="past" id="past">Показать прошедшие дни (${hiddenPast})</button>`
+    : (showPast && hasFuture && !q ? '<button class="past" id="past">Скрыть прошедшие дни</button>' : '');
+  for (const [dk, list2] of days){
+    const isT = dk === tk, isC = collapsed.has(dk);
+    html += `<div class="day ${isT ? 'today' : ''}" data-day="${dk}" data-tg="1"><span>${dk ? fmtDay(dk) : 'Без даты'}${isT ? ' · сегодня' : ''}</span><span class="cnt">${isC ? '▸' : '▾'} ${list2.length}</span></div>`;
+    if (isC) continue;
+    for (const e of list2){
+      const t1 = hm(e.start), t2 = hm(e.end), time = t1 ? (t2 ? `${t1}–${t2}` : t1) : 'весь день';
+      html += `<div class="ev ${bad.has(e.id) ? 'bad' : ''} ${e.cancelled ? 'cx' : ''} ${excluded.has(e.summary) ? 'ex' : ''}" style="--c:${col(e.summary)}">
+        ${selMode ? `<input type="checkbox" data-s="${e.id}" ${sel.has(e.id) ? 'checked' : ''}>` : ''}
+        <div class="m" data-i="${e.id}"><strong>${h(e.summary || 'Без названия')}</strong>
+          <div class="meta"><span class="pill">${time}</span>${e.location ? `<small>${h(e.location)}</small>` : ''}${bad.has(e.id) ? '<span class="w">⚠ пересечение</span>' : ''}</div></div>
+        ${selMode ? '' : `<button class="x c" data-cx="${e.id}" aria-label="Отменить пару">⊘</button><button class="x" data-del="${e.id}" aria-label="Удалить">×</button>`}</div>`;
     }
-    const t1 = hm(e.start), t2 = hm(e.end);
-    html += `<div class="ev ${bad.has(e.id) ? 'bad' : ''} ${e.cancelled ? 'cx' : ''} ${excluded.has(e.summary) ? 'ex' : ''}" style="border-left-color:hsl(${hue(e.summary)} 60% 50%)">
-      ${selMode ? `<input type="checkbox" data-s="${e.id}" ${sel.has(e.id) ? 'checked' : ''}>` : ''}
-      <div class="t">${t1 ? `<b>${t1}</b>${t2}` : '<b>весь день</b>'}</div>
-      <div class="m" data-i="${e.id}"><strong>${h(e.summary || 'Без названия')}</strong>
-      ${e.location ? `<small>${h(e.location)}</small>` : ''}${bad.has(e.id) ? '<span class="w">⚠ пересекается с другой парой</span>' : ''}</div>
-      ${selMode ? '' : `<button class="x c" data-cx="${e.id}" aria-label="Отменить пару">⊘</button><button class="x" data-del="${e.id}" aria-label="Удалить">×</button>`}</div>`;
   }
   list.innerHTML = html;
+  $('strip').innerHTML = [...days.keys()].filter(Boolean).map(dk => `<button class="chip ${dk === tk ? 't' : ''}" data-go="${dk}"><span>${wd(dk)}</span><b>${+dk.slice(6,8)}</b></button>`).join('');
   if (!scrolled){
     scrolled = true;
     const t = [...list.querySelectorAll('.day')].find(x => x.dataset.day >= tk);
     if (t) setTimeout(() => t.scrollIntoView({ block:'start' }), 0);
   }
 }
+$('strip').onclick = e => {
+  const b = e.target.closest('[data-go]'); if (!b) return;
+  const el = $('list').querySelector(`.day[data-day="${b.dataset.go}"]`);
+  if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+};
 const p2 = n => String(n).padStart(2,'0');
 $('q').oninput = render;
 
@@ -325,7 +369,7 @@ function load(file){
   r.onload = () => {
     const { evs, oth } = parseICS(String(r.result));
     setData(evs, oth, file.name || 'schedule.ics');
-    toast(evs.length ? 'Файл загружен' : 'Записей в файле не найдено');
+    toast(!evs.length ? 'Записей в файле не найдено' : matchMedia('(hover:none)').matches ? 'Свайп влево — удалить, вправо — отменить пару' : 'Файл загружен');
   };
   r.readAsText(file);
 }
@@ -348,7 +392,7 @@ const shiftStr = (v, days) => { if (!v) return v; const d = new Date(lms(v)); d.
 function setType(){ const t = $('fa').checked ? 'date' : 'datetime-local'; $('fb').type = t; $('fe').type = t; }
 $('fa').onchange = () => {
   const b = $('fb').value, e = $('fe').value, a = $('fa').checked;
-  setType();
+  setType(); $('slots').style.display = a ? 'none' : 'flex';
   $('fb').value = b ? b.slice(0,10) + (a ? '' : 'T09:00') : '';
   $('fe').value = e ? e.slice(0,10) + (a ? '' : 'T10:00') : '';
   prevStart = $('fb').value;
@@ -361,6 +405,20 @@ $('fb').onchange = () => {   /* сохраняем длительность па
   }
   prevStart = nv;
 };
+function slotList(){
+  const c = new Map();
+  events.forEach(e => {
+    if (!e.start || isAllDay(e.start) || !e.end || isAllDay(e.end)) return;
+    const k = toInput(e.start).slice(11) + '|' + toInput(e.end).slice(11); c.set(k, (c.get(k) || 0) + 1);
+  });
+  let l = [...c].sort((a, b) => b[1] - a[1]).slice(0, 6).map(x => x[0]).sort();
+  return l.length >= 2 ? l : ['08:00|09:40','10:00|11:40','12:00|13:40','14:00|15:40','16:00|17:40'];
+}
+$('slots').onclick = e => {
+  const b = e.target.closest('[data-sl]'); if (!b) return;
+  const [x, y] = b.dataset.sl.split('|'), d = ($('fb').value || lfmt(Date.now())).slice(0, 10);
+  $('fb').value = d + 'T' + x; $('fe').value = d + 'T' + y; prevStart = $('fb').value;
+};
 function openEditor(id){
   editing = id;
   const e = id == null ? null : byId(id);
@@ -368,6 +426,8 @@ function openEditor(id){
   $('ll').innerHTML = [...new Set(events.map(x => x.location).filter(Boolean))].map(v => `<option value="${h(v)}">`).join('');
   $('fa').checked = e ? isAllDay(e.start) : false;
   $('fc').checked = e ? !!e.cancelled : false;
+  $('slots').innerHTML = slotList().map(k => `<button type="button" class="chip" data-sl="${k}">${k.replace('|','–')}</button>`).join('');
+  $('slots').style.display = $('fa').checked ? 'none' : 'flex';
   setType();
   $('fs').value = e ? e.summary : ''; $('fl').value = e ? e.location : ''; $('fd').value = e ? e.description : '';
   $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none';
@@ -377,7 +437,7 @@ function openEditor(id){
     $('fb').value = lfmt(n.getTime()); n.setHours(n.getHours() + 1); $('fe').value = lfmt(n.getTime());
   }
   prevStart = $('fb').value;
-  $('dlg').showModal();
+  openD('dlg');
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
 }
 $('add').onclick = () => openEditor(null);
@@ -404,25 +464,53 @@ $('f').onsubmit = () => {
 };
 
 /* ---------- list actions ---------- */
+function delEvent(id){
+  const e = byId(id);
+  mutate(() => { events = events.filter(x => x.id !== id); });
+  toast(`Удалено: ${e.summary || 'запись'} · Вернуть`, true);
+}
+function toggleCx(id){
+  const e = byId(id);
+  mutate(() => { e.cancelled = !e.cancelled; });
+  toast(e.cancelled ? 'Пара отменена · Вернуть' : 'Пара возвращена', e.cancelled);
+}
+let swiped = false;
 $('list').onclick = ev => {
-  const cx = ev.target.closest('[data-cx]');
-  if (cx){
-    const e = byId(+cx.dataset.cx);
-    mutate(() => { e.cancelled = !e.cancelled; });
-    toast(e.cancelled ? 'Пара отменена · Вернуть' : 'Пара возвращена', e.cancelled); return;
-  }
-  const del = ev.target.closest('[data-del]');
-  if (del){
-    const id = +del.dataset.del, e = byId(id);
-    mutate(() => { events = events.filter(x => x.id !== id); });
-    toast(`Удалено: ${e.summary || 'запись'} · Отменить`, true); return;
-  }
-  const row = ev.target.closest('[data-i]') || (ev.target.closest('.ev') && ev.target.closest('.ev').querySelector('[data-i]'));
+  if (swiped) return;
+  if (ev.target.closest('#past')){ showPast = !showPast; render(); return; }
+  const dh = ev.target.closest('[data-tg]');
+  if (dh){ const d = dh.dataset.day; collapsed.has(d) ? collapsed.delete(d) : collapsed.add(d); render(); return; }
+  const cx = ev.target.closest('[data-cx]'); if (cx){ toggleCx(+cx.dataset.cx); return; }
+  const del = ev.target.closest('[data-del]'); if (del){ delEvent(+del.dataset.del); return; }
+  const row = ev.target.closest('.ev') && ev.target.closest('.ev').querySelector('[data-i]');
   if (!row) return;
   const id = +row.dataset.i;
   if (selMode){ sel.has(id) ? sel.delete(id) : sel.add(id); render(); }
   else openEditor(id);
 };
+/* свайп: влево — удалить, вправо — отменить пару */
+let sw = null, sdx = 0;
+$('list').addEventListener('touchstart', e => {
+  const c = !selMode && e.target.closest('.ev');
+  sw = c ? { c, x: e.touches[0].clientX, y: e.touches[0].clientY } : null; sdx = 0;
+}, { passive:true });
+$('list').addEventListener('touchmove', e => {
+  if (!sw) return;
+  const t = e.touches[0]; sdx = t.clientX - sw.x;
+  if (Math.abs(sdx) < 12 || Math.abs(t.clientY - sw.y) > Math.abs(sdx)) return;
+  sw.c.style.transition = 'none';
+  sw.c.style.transform = `translateX(${Math.max(-110, Math.min(110, sdx))}px)`;
+  sw.c.dataset.sw = sdx < 0 ? 'del' : 'cx';
+}, { passive:true });
+$('list').addEventListener('touchend', () => {
+  if (!sw) return;
+  const c = sw.c, m = c.querySelector('[data-i]'); sw = null;
+  c.style.transition = ''; c.style.transform = ''; delete c.dataset.sw;
+  if (Math.abs(sdx) > 80 && m){
+    swiped = true; setTimeout(() => swiped = false, 400);
+    const id = +m.dataset.i; sdx < 0 ? delEvent(id) : toggleCx(id);
+  }
+});
 $('selmode').onclick = () => { selMode = !selMode; sel.clear(); render(); };
 $('seldone').onclick = () => { selMode = false; sel.clear(); render(); };
 $('selall').onclick = () => { visible().forEach(e => sel.add(e.id)); render(); };
@@ -475,6 +563,7 @@ async function shareFile(){
   return false;
 }
 async function doExport(){
+  try { tg.disableClosingConfirmation(); } catch(e){}
   if (await shareFile()) return;
   if (/iPhone|iPad|iPod/.test(navigator.userAgent)){ showText(); return; }
   const url = URL.createObjectURL(new Blob([buildICS()], { type:'text/calendar;charset=utf-8' }));
@@ -500,7 +589,7 @@ function renderSubj(){
   $('sl').innerHTML = [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([n, c]) =>
     `<label class="chk"><input type="checkbox" data-n="${h(n)}" ${excluded.has(n) ? '' : 'checked'}><span style="flex:1;word-break:break-word">${h(n || 'Без названия')}</span><span style="color:var(--hint)">${c}</span></label>`).join('');
 }
-$('subj').onclick = () => { renderSubj(); $('sd').showModal(); };
+$('subj').onclick = () => { renderSubj(); openD('sd'); };
 $('sl').onchange = e => { const n = e.target.dataset.n; e.target.checked ? excluded.delete(n) : excluded.add(n); saveDraft(); render(); };
 $('sall').onclick = () => { excluded.clear(); renderSubj(); saveDraft(); render(); };
 $('snone').onclick = () => { events.forEach(e => excluded.add(e.summary)); renderSubj(); saveDraft(); render(); };
@@ -508,11 +597,11 @@ $('sdone').onclick = () => $('sd').close();
 $('save').onclick = () => {
   const d = diffHTML();
   if (!d){ doExport(); return; }
-  $('ddb').innerHTML = d; $('dd').showModal();
+  $('ddb').innerHTML = d; openD('dd');
 };
 $('ddc').onclick = () => $('dd').close();
 $('ddok').onclick = () => { $('dd').close(); doExport(); };
-function showText(){ $('txa').value = buildICS(); $('txd').showModal(); }
+function showText(){ $('txa').value = buildICS(); openD('txd'); }
 $('share').onclick = showText;
 $('txc').onclick = async () => {
   try { await navigator.clipboard.writeText($('txa').value); } catch(e){ $('txa').select(); document.execCommand('copy'); }
@@ -523,6 +612,16 @@ function toast(t, act){
   const el = $('toast'); el.textContent = t; el.classList.add('on'); el.classList.toggle('act', !!act);
   el.onclick = act ? () => { undo(); el.classList.remove('on'); } : null;
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), act ? 5000 : 2500);
+}
+function buzz(){ try { tg.HapticFeedback.impactOccurred('light'); } catch(e){} }
+function openD(id){ $(id).showModal(); try { tg.BackButton.show(); } catch(e){} }
+document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', () => {
+  if (!document.querySelector('dialog[open]')) { try { tg.BackButton.hide(); } catch(e){} }
+}));
+try { tg.BackButton.onClick(() => document.querySelectorAll('dialog[open]').forEach(d => d.close())); } catch(e){}
+let useMain = false;
+if (tg && tg.MainButton && tg.MainButton.setText){
+  useMain = true; tg.MainButton.setText('Сохранить .ics'); tg.MainButton.onClick(() => $('save').click());
 }
 render();
 </script>

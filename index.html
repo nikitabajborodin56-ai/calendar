@@ -81,6 +81,9 @@ dialog[open]{animation:up .22s ease-out}@keyframes up{from{transform:translateY(
 .wk{padding:12px 18px 0;font-size:12px;color:var(--hint);border-top:1px solid var(--bg2);margin-top:8px}.wk+.day{padding-top:2px}
 .drop:focus-visible,.ev .m:focus-visible,#sub:focus-visible{outline:2px solid var(--ac);outline-offset:2px}#sub.lnk{cursor:pointer;text-decoration:underline dotted}
 select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:8px 10px;width:100%;min-height:40px;font-size:16px;color:var(--tx)}
+.qr{font-size:14px;padding:7px 10px;border-radius:10px;background:var(--bg2);word-break:break-word}.qr.bad{color:var(--red)}
+.hrow{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:12px;padding:9px 12px}
+.hrow b{font-size:14px;word-break:break-word}.hrow small{display:block;color:var(--hint)}.hrow.rv{opacity:.5}.hrow .sm{flex:none;padding:0 12px}
 </style>
 </head>
 <body>
@@ -128,6 +131,7 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <label class="f1">Повтор<select id="fi"><option value="1">каждую неделю</option><option value="2">через неделю</option></select></label>
   <div class="fbar">
     <button type="button" class="btn" id="fcopy">Копия</button>
+    <button type="button" class="btn" id="fqa">⚡ Текстом</button>
     <button type="button" class="btn" id="cancel">Отмена</button>
     <button class="btn p" value="ok">Сохранить</button>
   </div>
@@ -157,6 +161,7 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <div class="row"><button class="btn" id="bc">Отмена</button><button class="btn p" id="bok">Применить</button></div></div></dialog>
 
 <dialog id="md"><div class="dd"><b>Ещё</b>
+  <div class="row"><button class="btn" id="mqa">⚡ Быстрый ввод</button><button class="btn" id="mhi">История</button></div>
   <label>Первая неделя семестра (любая дата этой недели)<input type="date" id="ms"></label>
   <label>Показывать тип пар<select id="mt"><option value="">все</option><option value="лек">лекции</option><option value="пр">практики</option><option value="лаб">лабораторные</option></select></label>
   <label>Напоминание за, мин<input type="number" id="ma" value="15" min="0" inputmode="numeric"></label>
@@ -167,6 +172,16 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <label class="btn" style="display:block;text-align:center;cursor:pointer;color:var(--tx);font-size:16px">Обновить из нового .ics<input type="file" id="uf" accept=".ics,text/calendar" hidden></label>
   <button class="btn" id="mpr">Проблемы и статистика</button>
   <button class="btn p" id="mdn">Готово</button></div></dialog>
+
+<dialog id="qd"><div class="dd"><b>Быстрый ввод</b>
+  <p class="sub">День, время, название, место. «×4» повторит 4 недели. Место после запятой или @.</p>
+  <textarea id="qt" rows="4" placeholder="пн 9:00 Физика, ГЗ 153&#10;пт 14:00-15:40 Лаба @ 11 к. 344 ×4&#10;15.10 18:30 Секция"></textarea>
+  <div id="qp" style="display:grid;gap:6px;max-height:34vh;overflow:auto"></div>
+  <div class="row"><button class="btn" id="qc">Отмена</button><button class="btn p" id="qok" disabled>Добавить</button></div></div></dialog>
+
+<dialog id="hd"><div class="dd"><b>История изменений</b>
+  <div id="hl" style="display:grid;gap:8px;max-height:60vh;overflow:auto"></div>
+  <button class="btn p" id="hdn">Готово</button></div></dialog>
 
 <dialog id="pd"><div class="dd"><b>Проблемы и статистика</b><div id="pb" style="max-height:60vh;overflow:auto"></div><button class="btn p" id="pdn">Готово</button></div></dialog>
 <div class="toast" id="toast"></div>
@@ -299,8 +314,8 @@ function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft'))
 const snap = () => JSON.stringify({ e: events, x: [...excluded] });
 const restore = t => { const o = JSON.parse(t); events = o.e; excluded = new Set(o.x); sel.clear(); saveDraft(); render(); };
 function mutate(fn){
-  undoStack.push(snap()); if (undoStack.length > 30) undoStack.shift(); redoStack = [];
-  fn(); saveDraft(); render(); buzz();
+  const before = snap(); undoStack.push(before); if (undoStack.length > 30) undoStack.shift(); redoStack = [];
+  fn(); logHist(before); saveDraft(); render(); buzz();
   try { tg.enableClosingConfirmation(); } catch(e){}
 }
 function undo(){ if (!undoStack.length) return; redoStack.push(snap()); restore(undoStack.pop()); toast('Действие отменено'); }
@@ -409,7 +424,7 @@ $('q').oninput = () => { clearTimeout(render.t); render.t = setTimeout(render, 1
 function setData(evs, oth, name, o, ex, c){
   excluded = new Set(ex || []); if (c) cfg = Object.assign({ start:'', colors:{} }, c); events = evs; others = oth; fileName = name; fileLoaded = true; undoStack = []; sel.clear(); selMode = false; scrolled = false;
   nid = Math.max(nid, ...events.map(e => e.id), 0);
-  redoStack = []; conflictOnly = false;
+  redoStack = []; conflictOnly = false; hist = [];
   if (o) orig = o;
   events.forEach(e => { if (!e.uid){ const k = okey(e); e.uid = newUid(); if (o && orig[k]){ orig[e.uid] = orig[k]; delete orig[k]; } } });
   if (!o) snapOrig();
@@ -492,7 +507,7 @@ function openEditor(id){
   $('slots').style.display = $('fa').checked ? 'none' : 'flex';
   setType();
   $('fs').value = e ? e.summary : ''; $('fl').value = e ? e.location : ''; $('fd').value = e ? e.description : '';
-  $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none';
+  $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none'; $('fqa').style.display = e ? 'none' : '';
   $('fn').checked = e ? !!e.noconf : false; $('fi').value = '1';
   if (e){ $('fb').value = toInput(e.start); $('fe').value = e.end ? (isAllDay(e.end) ? shiftStr(toInput(e.end), -1) : toInput(e.end)) : ''; }
   else {
@@ -713,6 +728,121 @@ function toast(t, act){
   clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), act ? 5000 : 2500);
 }
 function buzz(){ try { tg.HapticFeedback.impactOccurred('light'); } catch(e){} }
+/* ---------- история изменений ---------- */
+let hist = [], histPrefix = '';
+const FN = { summary:'название', location:'место', description:'заметка', start:'время', end:'время', cancelled:'отмена', noconf:'пересечение' };
+function logHist(beforeJSON){
+  const b = JSON.parse(beforeJSON).e, bm = new Map(b.map(e => [e.id, e])), am = new Map(events.map(e => [e.id, e]));
+  const added = events.filter(e => !bm.has(e.id)), removed = b.filter(o => !am.has(o.id)), changed = [];
+  events.forEach(e => {
+    const o = bm.get(e.id); if (!o) return;
+    const f = {};
+    new Set([...Object.keys(o), ...Object.keys(e)]).forEach(k => { if (JSON.stringify(o[k]) !== JSON.stringify(e[k])) f[k] = o[k] === undefined ? null : o[k]; });
+    if (Object.keys(f).length) changed.push({ id:e.id, name:lbl(e), fields:f });
+  });
+  if (!added.length && !removed.length && !changed.length) return;
+  const parts = [], one = (a, w) => a.length === 1 ? `${w}: ${lbl(a[0])}` : `${w}: ${a.length}`;
+  if (added.length) parts.push(one(added, 'Добавлено'));
+  if (removed.length) parts.push(one(removed, 'Удалено'));
+  if (changed.length){
+    const names = [...new Set(changed.flatMap(c => Object.keys(c.fields).map(k => FN[k] || 'прочее')))].join(', ');
+    parts.push(changed.length === 1 ? `Изменено: ${changed[0].name} (${names})` : `Изменено: ${changed.length} (${names})`);
+  }
+  hist.unshift({ t:Date.now(), label:histPrefix + parts.join(' · '), added:added.map(e => e.id), removed, changed, rev:false });
+  if (hist.length > 50) hist.pop();
+}
+function applyRevert(x, dry){
+  let n = 0;
+  x.added.forEach(id => { if (byId(id)){ n++; if (!dry) events = events.filter(e => e.id !== id); } });
+  x.removed.forEach(o => { if (!byId(o.id)){ n++; if (!dry) events.push(JSON.parse(JSON.stringify(o))); } });
+  x.changed.forEach(c => {
+    const e = byId(c.id); if (!e) return;
+    const diff = Object.keys(c.fields).filter(k => JSON.stringify(e[k]) !== JSON.stringify(c.fields[k] === null ? undefined : c.fields[k]));
+    if (diff.length){ n++; if (!dry) diff.forEach(k => { if (c.fields[k] === null) delete e[k]; else e[k] = JSON.parse(JSON.stringify(c.fields[k])); }); }
+  });
+  return n;
+}
+function revertHist(i){
+  const x = hist[i]; if (!x || x.rev) return;
+  if (!applyRevert(x, true)){ x.rev = true; renderHist(); toast('Уже восстановлено, откатывать нечего'); return; }
+  histPrefix = 'Откат: '; mutate(() => applyRevert(x, false)); histPrefix = ''; x.rev = true;
+  renderHist(); toast('Изменение откачено · Вернуть', true);
+}
+function renderHist(){
+  $('hl').innerHTML = hist.length ? hist.map((x, i) => `<div class="hrow ${x.rev ? 'rv' : ''}"><div><b>${h(x.label)}</b><small>${new Date(x.t).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' })}${x.rev ? ' · откачено' : ''}</small></div>${x.rev ? '' : `<button class="sm" data-rv="${i}">Откатить</button>`}</div>`).join('') : '<div class="empty">Пока нет изменений</div>';
+}
+$('hl').onclick = e => { const b = e.target.closest('[data-rv]'); if (b) revertHist(+b.dataset.rv); };
+$('hdn').onclick = () => $('hd').close();
+$('mhi').onclick = () => { $('md').close(); renderHist(); openD('hd'); };
+
+/* ---------- быстрый ввод текстом ---------- */
+const QD = { 'пн':1,'пон':1,'понедельник':1,'вт':2,'втор':2,'вторник':2,'ср':3,'среда':3,'чт':4,'четверг':4,'пт':5,'пятница':5,'сб':6,'суббота':6,'вс':0,'воскресенье':0 };
+const WN = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+let qParsed = [];
+function splitTL(body){
+  let m = body.match(/^(.*?)\s*(?:@|,)\s*(.+)$/);
+  if (m) return [m[1].trim(), m[2].trim()];
+  const locs = [...new Set(events.map(e => e.location).filter(Boolean))].sort((a, b) => b.length - a.length);
+  for (const l of locs) if (body.toLowerCase().endsWith(' ' + l.toLowerCase())) return [body.slice(0, body.length - l.length).trim(), l];
+  return [body.trim(), ''];
+}
+function parseQuick(line){
+  let t = line.trim(), rep = 1; if (!t) return null;
+  t = t.replace(/\s+(?:[x×х](\d{1,2})|(\d{1,2})\s*нед\.?)$/i, (m, a, b) => { rep = Math.min(40, Math.max(1, +(a || b))); return ''; });
+  const sp = t.indexOf(' '), w = (sp < 0 ? t : t.slice(0, sp)).toLowerCase().replace(/[.,]$/, ''), rest = sp < 0 ? '' : t.slice(sp + 1).trim();
+  const d = new Date(); d.setHours(0,0,0,0); let m;
+  if (w === 'сегодня'){} else if (w === 'завтра') d.setDate(d.getDate() + 1); else if (w === 'послезавтра') d.setDate(d.getDate() + 2);
+  else if (QD[w] !== undefined) d.setDate(d.getDate() + (QD[w] - d.getDay() + 7) % 7);
+  else if ((m = w.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$/))){
+    let y = m[3] ? +m[3] : d.getFullYear(); if (y < 100) y += 2000;
+    const x = new Date(y, +m[2] - 1, +m[1]); if (!m[3] && x < d) x.setFullYear(y + 1);
+    if (x.getMonth() !== +m[2] - 1) return { line, err:'нет такой даты' };
+    d.setTime(x.getTime());
+  } else return { line, err:'не понял день (пн, завтра, 15.10)' };
+  const tm = rest.match(/^(\d{1,2})[:.](\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?\s*(.*)$/);
+  if (!tm) return { line, err:'не понял время (9:00 или 9:00-10:40)' };
+  if (+tm[1] > 23 || +tm[2] > 59 || (tm[3] && (+tm[3] > 23 || +tm[4] > 59))) return { line, err:'неверное время' };
+  if (!tm[5].trim()) return { line, err:'нет названия' };
+  const s = `${p2(+tm[1])}:${tm[2]}`, day = lfmt(d.getTime(), true), sv = `${day}T${s}`;
+  let e = tm[3] ? `${p2(+tm[3])}:${tm[4]}` : null;
+  if (!e){   /* длительность берём из файла, только если такая пара встречается там минимум дважды; иначе 100 минут */
+    const c = {};
+    events.forEach(o => { if (o.start && o.end && !isAllDay(o.start) && !isAllDay(o.end) && toInput(o.start).slice(11) === s){ const k = toInput(o.end).slice(11); c[k] = (c[k] || 0) + 1; } });
+    const best = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    e = best && best[1] >= 2 ? best[0] : null;
+  }
+  let endMs = e ? lms(`${day}T${e}`) : lms(sv) + 100 * 60000;
+  if (endMs <= lms(sv)) endMs += 86400000;
+  let [title, loc] = splitTL(tm[5]);
+  const known = events.find(x => x.summary.toLowerCase() === title.toLowerCase());
+  title = known ? known.summary : title.charAt(0).toUpperCase() + title.slice(1);
+  return { line, summary:title, location:loc, sv, ev:lfmt(endMs), rep };
+}
+function fmtQ(x){
+  const d = new Date(lms(x.sv)), a = digitsMs(x.sv.replace(/[-:]/g, '') + '00'), b = digitsMs(x.ev.replace(/[-:]/g, '') + '00');
+  const c = events.find(o => { const q = !o.cancelled && span(o); return q && q[0] < b && a < q[1]; });
+  return `${WN[d.getDay()]} ${p2(d.getDate())}.${p2(d.getMonth() + 1)} ${x.sv.slice(11)}–${x.ev.slice(11)} · ${h(x.summary)}${x.location ? ' · ' + h(x.location) : ''}${x.rep > 1 ? ` · ×${x.rep} нед.` : ''}${c ? ` <span style="color:var(--red)">⚠ пересекается: ${h(c.summary)}</span>` : ''}`;
+}
+function renderQ(){
+  qParsed = $('qt').value.split('\n').map(l => parseQuick(l)).filter(Boolean);
+  const ok = qParsed.filter(x => !x.err), total = ok.reduce((a, x) => a + x.rep, 0);
+  $('qp').innerHTML = qParsed.map(x => x.err ? `<div class="qr bad">✗ ${h(x.line)} — ${x.err}</div>` : `<div class="qr">✓ ${fmtQ(x)}</div>`).join('');
+  $('qok').disabled = !ok.length; $('qok').textContent = ok.length ? `Добавить (${total})` : 'Добавить';
+}
+function openQuick(){ $('qt').value = ''; renderQ(); openD('qd'); $('qt').focus(); }
+$('qt').oninput = renderQ;
+$('qc').onclick = () => $('qd').close();
+$('qok').onclick = () => {
+  const ok = qParsed.filter(x => !x.err); if (!ok.length) return;
+  const total = ok.reduce((a, x) => a + x.rep, 0);
+  mutate(() => ok.forEach(x => { for (let k = 0; k < x.rep; k++)
+    events.push({ id: ++nid, uid: newUid(), extra: [], summary: x.summary, location: x.location, description: '', cancelled: false, noconf: false,
+      start: fromInput(shiftStr(x.sv, 7 * k), false, null), end: fromInput(shiftStr(x.ev, 7 * k), false, null) }); }));
+  $('qd').close(); toast(`Добавлено записей: ${total} · Вернуть`, true);
+};
+$('mqa').onclick = () => { $('md').close(); openQuick(); };
+$('fqa').onclick = () => { $('dlg').close(); openQuick(); };
+
 function openD(id){ $(id).showModal(); try { tg.BackButton.show(); } catch(e){} syncMain(); }
 document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', () => {
   if (!document.querySelector('dialog[open]')) { try { tg.BackButton.hide(); } catch(e){} }

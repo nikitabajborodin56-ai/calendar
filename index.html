@@ -84,6 +84,13 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
 .qr{font-size:14px;padding:7px 10px;border-radius:10px;background:var(--bg2);word-break:break-word}.qr.bad{color:var(--red)}
 .hrow{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg2);border-radius:12px;padding:9px 12px}
 .hrow b{font-size:14px;word-break:break-word}.hrow small{display:block;color:var(--hint)}.hrow.rv{opacity:.5}.hrow .sm{flex:none;padding:0 12px}
+#subj,#selmode,#closef{display:none}
+.sticky{transition:transform .2s}.sticky.up{transform:translateY(-110%)}
+.sec{display:block;border-radius:12px;background:var(--bg2);padding:2px 12px}.sec summary{padding:11px 0;font-weight:600;cursor:pointer;color:var(--tx)}.sec>*:not(summary){margin-bottom:8px}.sec .btn{background:var(--bg)}
+#next .nx{margin:4px 12px;padding:10px 14px;border-radius:14px;background:var(--ac);color:var(--act)}.nx small{display:block;opacity:.85}.nx b{font-size:16px}
+input[type=time]{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padding:8px 10px;width:100%;min-height:40px;font-size:16px;color:var(--tx)}
+.compact .ev{padding:7px 10px 7px 14px;margin:3px 10px}.compact .ev .m{display:flex;align-items:center;gap:8px}.compact .m strong{order:1;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+.compact .meta{display:contents}.compact .pill{order:0;flex:none}.compact .meta small{order:2;max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .w{order:3}
 </style>
 </head>
 <body>
@@ -100,9 +107,10 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <button class="sm" id="subj">Предметы</button>
   <button class="sm" id="selmode">Выбрать</button>
   <button class="sm" id="closef">Закрыть</button>
-  <button class="sm" id="more">Ещё</button>
+  <button class="sm" id="more" aria-label="Меню">⋯</button>
 </div>
 <div class="strip" id="strip"></div></div>
+<div id="next"></div>
 <main id="list"></main>
 <div class="bar" id="bar1">
   <button class="btn" id="add" disabled>+ Запись</button>
@@ -132,6 +140,7 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <div class="fbar">
     <button type="button" class="btn" id="fcopy">Копия</button>
     <button type="button" class="btn" id="fqa">⚡ Текстом</button>
+    <button type="button" class="btn" id="fmv">Перенести</button>
     <button type="button" class="btn" id="cancel">Отмена</button>
     <button class="btn p" value="ok">Сохранить</button>
   </div>
@@ -161,25 +170,57 @@ select{border:1px solid var(--bg2);background:var(--bg2);border-radius:10px;padd
   <div class="row"><button class="btn" id="bc">Отмена</button><button class="btn p" id="bok">Применить</button></div></div></dialog>
 
 <dialog id="md"><div class="dd"><b>Ещё</b>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><button class="btn" id="mmp">Предметы</button><button class="btn" id="mms">Выбрать</button><button class="btn" id="mmc">Закрыть файл</button></div>
   <div class="row"><button class="btn" id="mqa">⚡ Быстрый ввод</button><button class="btn" id="mhi">История</button></div>
+  <details class="sec"><summary>Фильтры и напоминания</summary>
   <label>Первая неделя семестра (любая дата этой недели)<input type="date" id="ms"></label>
   <label>Показывать тип пар<select id="mt"><option value="">все</option><option value="лек">лекции</option><option value="пр">практики</option><option value="лаб">лабораторные</option></select></label>
   <label>Напоминание за, мин<input type="number" id="ma" value="15" min="0" inputmode="numeric"></label>
-  <div class="row"><button class="btn" id="mad">Добавить найденным</button><button class="btn" id="mar">Убрать у найденных</button></div>
+  <div class="row"><button class="btn" id="mad">Добавить найденным</button><button class="btn" id="mar">Убрать у найденных</button></div></details>
+  <details class="sec"><summary>Замена, период, перенос дней</summary>
   <label>Заменить в поле<select id="rf"><option value="location">Место</option><option value="summary">Название</option><option value="description">Заметка</option></select></label>
   <div class="row"><input type="text" id="rq" placeholder="Найти"><input type="text" id="rr" placeholder="Заменить на"></div>
   <button class="btn" id="rgo">Заменить везде</button>
+  <div class="row"><label>Период с<input type="date" id="pf"></label><label>по<input type="date" id="pt"></label></div>
+  <div class="row"><button class="btn" id="pcx">Отменить пары</button><button class="btn" id="pun">Вернуть пары</button></div>
+  <div class="row"><input type="number" id="psh" placeholder="Сдвиг, дней (−1 или 7)" inputmode="numeric"><button class="btn" id="psg">Сдвинуть</button></div></details>
+  <details class="sec"><summary>Файл, картинка, копия правок</summary>
   <label class="btn" style="display:block;text-align:center;cursor:pointer;color:var(--tx);font-size:16px">Обновить из нового .ics<input type="file" id="uf" accept=".ics,text/calendar" hidden></label>
   <button class="btn" id="mpr">Проблемы и статистика</button>
+  <button class="btn" id="wkb">Картинка с расписанием недели</button>
+  <button class="btn" id="mcp">Компактный вид</button>
+  <button class="btn" id="bkx">Сохранить копию правок</button>
+  <label class="btn" style="display:block;text-align:center;cursor:pointer;color:var(--tx);font-size:16px">Загрузить копию правок<input type="file" id="bki" accept=".json,application/json" hidden></label></details>
   <button class="btn p" id="mdn">Готово</button></div></dialog>
+
+<dialog id="mv"><div class="dd"><b>Перенести пару</b><p class="sub" id="mvt"></p>
+  <label>Новая дата<input type="date" id="mvd"></label>
+  <div class="row"><label>Начало<input type="time" id="mvs"></label><label>Конец<input type="time" id="mve"></label></div>
+  <label class="chk"><input type="checkbox" id="mvc" checked> Старую пару пометить отменённой</label>
+  <div class="row"><button class="btn" id="mvx">Отмена</button><button class="btn p" id="mvok">Перенести</button></div></div></dialog>
+
+<dialog id="wk"><div class="dd"><b>Картинка недели</b>
+  <label>Неделя (любая дата)<input type="date" id="wkd"></label>
+  <img id="wki" alt="" style="width:100%;border-radius:10px;display:none">
+  <p class="sub" id="wkh" style="display:none">Если не отправляется, нажмите и удерживайте картинку, чтобы сохранить.</p>
+  <div class="row"><button class="btn" id="wkg">Создать</button><button class="btn p" id="wks" disabled>Поделиться</button></div>
+  <button class="btn" id="wkc">Закрыть</button></div></dialog>
+
+<dialog id="ab"><div class="dd"><b>Сокращения и шаблоны</b>
+  <label>Сокращения (по строке: физ = Физика)<textarea id="abt" rows="3"></textarea></label>
+  <label>Шаблоны (#Название, дальше строки записей)<textarea id="tpt" rows="5" placeholder="#Моя неделя&#10;пн 9:00 Физика, ГЗ 153&#10;ср 10:00 Лаба, 11 к. 344"></textarea></label>
+  <div class="row"><button class="btn" id="abc">Отмена</button><button class="btn p" id="abs">Сохранить</button></div></div></dialog>
 
 <dialog id="qd"><div class="dd"><b>Быстрый ввод</b>
   <p class="sub">День, время, название, место. «×4» повторит 4 недели. Место после запятой или @.</p>
+  <div class="slots" id="qtp"></div>
   <textarea id="qt" rows="4" placeholder="пн 9:00 Физика, ГЗ 153&#10;пт 14:00-15:40 Лаба @ 11 к. 344 ×4&#10;15.10 18:30 Секция"></textarea>
+  <button class="sm" id="qab" style="padding:8px 12px;flex:none">Сокращения и шаблоны</button>
   <div id="qp" style="display:grid;gap:6px;max-height:34vh;overflow:auto"></div>
   <div class="row"><button class="btn" id="qc">Отмена</button><button class="btn p" id="qok" disabled>Добавить</button></div></div></dialog>
 
 <dialog id="hd"><div class="dd"><b>История изменений</b>
+  <input type="search" id="hq" placeholder="Поиск по истории" style="border:0;background:var(--bg2);border-radius:10px;padding:9px 12px;font-size:16px;color:var(--tx)">
   <div id="hl" style="display:grid;gap:8px;max-height:60vh;overflow:auto"></div>
   <button class="btn p" id="hdn">Готово</button></div></dialog>
 
@@ -308,7 +349,7 @@ const wkName = dk => { const n = wkNum(dk); return n >= 1 ? `нед. ${n} · ${n
 const byId = id => events.find(e => e.id === id);
 function snapOrig(){ orig = {}; events.forEach(e => orig[okey(e)] = { s: sig(e), name: lbl(e) }); }
 function saveDraft(){
-  try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded], cfg })); } catch(e){}
+  try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded], cfg, hist: (typeof hist !== 'undefined' ? hist : []).slice(0, 50) })); } catch(e){}
 }
 function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft')); } catch(e){ return null; } }
 const snap = () => JSON.stringify({ e: events, x: [...excluded] });
@@ -453,7 +494,7 @@ const drop = $('drop');
 drop.addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
 $('draft').onclick = e => {
   if (!e.target.closest('#resume')) return;
-  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded, d.cfg);
+  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded, d.cfg); hist = d.hist || [];
 };
 
 /* ---------- editor ---------- */
@@ -507,7 +548,7 @@ function openEditor(id){
   $('slots').style.display = $('fa').checked ? 'none' : 'flex';
   setType();
   $('fs').value = e ? e.summary : ''; $('fl').value = e ? e.location : ''; $('fd').value = e ? e.description : '';
-  $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none'; $('fqa').style.display = e ? 'none' : '';
+  $('fr').value = 0; $('fcopy').style.display = e ? '' : 'none'; $('fqa').style.display = e ? 'none' : ''; $('fmv').style.display = e ? '' : 'none';
   $('fn').checked = e ? !!e.noconf : false; $('fi').value = '1';
   if (e){ $('fb').value = toInput(e.start); $('fe').value = e.end ? (isAllDay(e.end) ? shiftStr(toInput(e.end), -1) : toInput(e.end)) : ''; }
   else {
@@ -769,14 +810,17 @@ function revertHist(i){
   renderHist(); toast('Изменение откачено · Вернуть', true);
 }
 function renderHist(){
-  $('hl').innerHTML = hist.length ? hist.map((x, i) => `<div class="hrow ${x.rev ? 'rv' : ''}"><div><b>${h(x.label)}</b><small>${new Date(x.t).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' })}${x.rev ? ' · откачено' : ''}</small></div>${x.rev ? '' : `<button class="sm" data-rv="${i}">Откатить</button>`}</div>`).join('') : '<div class="empty">Пока нет изменений</div>';
+  const q = $('hq').value.trim().toLowerCase();
+  const L = hist.map((x, i) => ({ x, i })).filter(o => !q || o.x.label.toLowerCase().includes(q));
+  $('hl').innerHTML = L.length ? L.map(({ x, i }) => `<div class="hrow ${x.rev ? 'rv' : ''}"><div><b>${h(x.label)}</b><small>${new Date(x.t).toLocaleString('ru', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}${x.rev ? ' · откачено' : ''}</small></div>${x.rev ? '' : `<button class="sm" data-rv="${i}">Откатить</button>`}</div>`).join('') : `<div class="empty">${hist.length ? 'Ничего не найдено' : 'Пока нет изменений'}</div>`;
 }
+$('hq').oninput = renderHist;
 $('hl').onclick = e => { const b = e.target.closest('[data-rv]'); if (b) revertHist(+b.dataset.rv); };
 $('hdn').onclick = () => $('hd').close();
 $('mhi').onclick = () => { $('md').close(); renderHist(); openD('hd'); };
 
 /* ---------- быстрый ввод текстом ---------- */
-const QD = { 'пн':1,'пон':1,'понедельник':1,'вт':2,'втор':2,'вторник':2,'ср':3,'среда':3,'чт':4,'четверг':4,'пт':5,'пятница':5,'сб':6,'суббота':6,'вс':0,'воскресенье':0 };
+const QD = { 'пн':1,'пон':1,'понедельник':1,'вт':2,'втор':2,'вторник':2,'ср':3,'среда':3,'чт':4,'четверг':4,'пт':5,'пятница':5,'сб':6,'среду':3,'пятницу':5,'субботу':6,'суббота':6,'вс':0,'воскресенье':0 };
 const WN = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 let qParsed = [];
 function splitTL(body){
@@ -788,6 +832,7 @@ function splitTL(body){
 }
 function parseQuick(line){
   let t = line.trim(), rep = 1; if (!t) return null;
+  t = t.replace(/^(?:в|во|на)\s+/i, '');
   t = t.replace(/\s+(?:[x×х](\d{1,2})|(\d{1,2})\s*нед\.?)$/i, (m, a, b) => { rep = Math.min(40, Math.max(1, +(a || b))); return ''; });
   const sp = t.indexOf(' '), w = (sp < 0 ? t : t.slice(0, sp)).toLowerCase().replace(/[.,]$/, ''), rest = sp < 0 ? '' : t.slice(sp + 1).trim();
   const d = new Date(); d.setHours(0,0,0,0); let m;
@@ -799,7 +844,7 @@ function parseQuick(line){
     if (x.getMonth() !== +m[2] - 1) return { line, err:'нет такой даты' };
     d.setTime(x.getTime());
   } else return { line, err:'не понял день (пн, завтра, 15.10)' };
-  const tm = rest.match(/^(\d{1,2})[:.](\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?\s*(.*)$/);
+  const tm = rest.replace(/^в\s+(\d{1,2})(?=\s|$)/i, '$1:00').match(/^(\d{1,2})[:.](\d{2})(?:\s*[-–—]\s*(\d{1,2})[:.](\d{2}))?\s*(.*)$/);
   if (!tm) return { line, err:'не понял время (9:00 или 9:00-10:40)' };
   if (+tm[1] > 23 || +tm[2] > 59 || (tm[3] && (+tm[3] > 23 || +tm[4] > 59))) return { line, err:'неверное время' };
   if (!tm[5].trim()) return { line, err:'нет названия' };
@@ -813,7 +858,7 @@ function parseQuick(line){
   }
   let endMs = e ? lms(`${day}T${e}`) : lms(sv) + 100 * 60000;
   if (endMs <= lms(sv)) endMs += 86400000;
-  let [title, loc] = splitTL(tm[5]);
+  let [title, loc] = splitTL(tm[5]); title = applyAbbr(title); loc = applyAbbr(loc);
   const known = events.find(x => x.summary.toLowerCase() === title.toLowerCase());
   title = known ? known.summary : title.charAt(0).toUpperCase() + title.slice(1);
   return { line, summary:title, location:loc, sv, ev:lfmt(endMs), rep };
@@ -829,7 +874,7 @@ function renderQ(){
   $('qp').innerHTML = qParsed.map(x => x.err ? `<div class="qr bad">✗ ${h(x.line)} — ${x.err}</div>` : `<div class="qr">✓ ${fmtQ(x)}</div>`).join('');
   $('qok').disabled = !ok.length; $('qok').textContent = ok.length ? `Добавить (${total})` : 'Добавить';
 }
-function openQuick(){ $('qt').value = ''; renderQ(); openD('qd'); $('qt').focus(); }
+function openQuick(){ $('qtp').innerHTML = tplList().map((t, i) => `<button type="button" class="chip" data-tp="${i}">${h(t.n)}</button>`).join(''); $('qt').value = ''; renderQ(); openD('qd'); $('qt').focus(); }
 $('qt').oninput = renderQ;
 $('qc').onclick = () => $('qd').close();
 $('qok').onclick = () => {
@@ -842,6 +887,154 @@ $('qok').onclick = () => {
 };
 $('mqa').onclick = () => { $('md').close(); openQuick(); };
 $('fqa').onclick = () => { $('dlg').close(); openQuick(); };
+
+/* ---------- улучшения: меню, перенос, период, ближайшая пара, картинка, копия ---------- */
+const ls = k => { try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } };
+const lset = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+$('mmp').onclick = () => { $('md').close(); $('subj').click(); };
+$('mms').onclick = () => { $('md').close(); $('selmode').click(); };
+$('mmc').onclick = () => { $('md').close(); $('closef').click(); };
+let ly = 0;
+let ut = 0; ['touchmove','wheel'].forEach(t => addEventListener(t, () => { ut = Date.now(); }, { passive:true }));
+addEventListener('scroll', () => { const y = scrollY, el = $('sticky'); if (Date.now() - ut > 700){ el.classList.remove('up'); ly = y; return; } if (y > ly + 4 && y > 140) el.classList.add('up'); else if (y < ly - 4 || y < 140) el.classList.remove('up'); ly = y; }, { passive:true });
+
+/* перенос одной пары */
+let mvId = null;
+$('fmv').onclick = () => {
+  const e = byId(editing); if (!e) return;
+  if (!e.start || isAllDay(e.start)){ toast('Пару на весь день меняйте в редакторе'); return; }
+  mvId = e.id; $('dlg').close(); $('mvt').textContent = e.summary;
+  const v = toInput(e.start); $('mvd').value = v.slice(0, 10); $('mvs').value = v.slice(11); $('mve').value = (e.end ? toInput(e.end) : v).slice(11);
+  openD('mv');
+};
+$('mvx').onclick = () => $('mv').close();
+$('mvok').onclick = () => {
+  const e0 = byId(mvId), d = $('mvd').value; if (!e0 || !d || !$('mvs').value) return;
+  mutate(() => {
+    const n = JSON.parse(JSON.stringify(e0)); n.id = ++nid; n.uid = newUid(); n.cancelled = false;
+    n.start = fromInput(d + 'T' + $('mvs').value, false, e0.start); n.end = fromInput(d + 'T' + ($('mve').value || $('mvs').value), false, e0.end || e0.start);
+    if ($('mvc').checked) e0.cancelled = true;
+    events.push(n);
+  });
+  $('mv').close(); toast('Пара перенесена · Вернуть', true);
+};
+
+/* период: отменить, вернуть, сдвинуть */
+const inRange = e => { const f = $('pf').value.replace(/-/g, ''), t = ($('pt').value || $('pf').value).replace(/-/g, ''), d = key(e).slice(0, 8); return f && d && d >= f && d <= t; };
+function periodDo(fn, msg, filt){
+  if (!$('pf').value){ toast('Укажите дату «Период с»'); return; }
+  const L = events.filter(e => inRange(e) && (!filt || filt(e)));
+  if (!L.length){ toast('В периоде нет подходящих пар'); return; }
+  mutate(() => L.forEach(fn)); toast(`${msg}: ${L.length} · Вернуть`, true);
+}
+$('pcx').onclick = () => periodDo(e => { e.cancelled = true; }, 'Отменено пар', e => !e.cancelled);
+$('pun').onclick = () => periodDo(e => { e.cancelled = false; }, 'Возвращено пар', e => e.cancelled);
+$('psg').onclick = () => {
+  const n = parseInt($('psh').value, 10); if (!n){ toast('Укажите число дней'); return; }
+  const sh = d => d && fromInput(shiftStr(toInput(d), n), isAllDay(d), d);
+  periodDo(e => { e.start = sh(e.start); e.end = sh(e.end); }, 'Сдвинуто пар');
+};
+
+/* ближайшая пара */
+function renderNext(){
+  const el = $('next'); if (!fileLoaded){ el.innerHTML = ''; return; }
+  const now = wallOf(Date.now(), calTZ()), nm = digitsMs(now), today = now.slice(0, 8);
+  const L = events.filter(e => !e.cancelled && !excluded.has(e.summary) && e.start && !isAllDay(e.start))
+    .map(e => ({ e, a: digitsMs(wall(e.start)), b: digitsMs(wall(e.end || e.start)) })).filter(x => x.b > nm).sort((x, y) => x.a - y.a);
+  if (!L.length){ el.innerHTML = ''; return; }
+  const x = L[0], mins = Math.round((x.a - nm) / 60000), sd = wall(x.e.start).slice(0, 8), left = L.filter(y => wall(y.e.start).slice(0, 8) === today).length;
+  const when = x.a <= nm ? `идёт, ещё ${Math.round((x.b - nm) / 60000)} мин` : mins < 60 ? `через ${mins} мин` : sd === today ? `сегодня в ${hm(x.e.start)}` : `${fmtDay(sd)}, ${hm(x.e.start)}`;
+  el.innerHTML = `<div class="nx"><small>${x.a <= nm ? 'Сейчас' : 'Ближайшая пара'}${left ? ` · сегодня осталось: ${left}` : ''}</small><b>${h(x.e.summary)}</b> · ${when}${x.e.location ? ' · ' + h(x.e.location) : ''}</div>`;
+}
+setInterval(renderNext, 30000);
+{ const _r = render; render = function(){ _r.apply(this, arguments); renderNext(); }; }
+
+/* картинка недели */
+const fit = (x, s, w) => { let t = s; while (t.length > 1 && x.measureText(t).width > w) t = t.slice(0, -1); return t === s ? s : t.trimEnd() + '…'; };
+function drawWeek(v){
+  const d0 = new Date(v + 'T00:00'); d0.setDate(d0.getDate() - (d0.getDay() + 6) % 7);
+  const days = [...Array(7)].map((_, i) => { const d = new Date(d0); d.setDate(d0.getDate() + i); return d; });
+  const kk = d => `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}`;
+  const rows = days.map(d => ({ d, l: events.filter(e => !e.cancelled && !excluded.has(e.summary) && key(e).slice(0, 8) === kk(d)).sort((a, b) => key(a).localeCompare(key(b))) })).filter(r => r.l.length);
+  const names = [...new Set(events.map(e => e.summary))].sort(), W = 1080;
+  const c = document.createElement('canvas'); c.width = W; c.height = Math.max(300, 170 + rows.reduce((a, r) => a + 90 + r.l.length * 96, 0));
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, c.height);
+  const f = d => d.toLocaleDateString('ru', { day:'numeric', month:'long' });
+  x.fillStyle = '#17191c'; x.font = 'bold 46px sans-serif'; x.fillText(`Расписание: ${f(days[0])} – ${f(days[6])}`, 40, 80);
+  let y = 130;
+  if (!rows.length){ x.font = '36px sans-serif'; x.fillStyle = '#6b7280'; x.fillText('На этой неделе пар нет', 40, y + 40); }
+  rows.forEach(r => {
+    const t = r.d.toLocaleDateString('ru', { weekday:'long', day:'numeric', month:'long' });
+    x.font = 'bold 36px sans-serif'; x.fillStyle = '#2f6fed'; x.fillText(t.charAt(0).toUpperCase() + t.slice(1), 40, y + 50); y += 90;
+    r.l.forEach(e => {
+      x.fillStyle = `hsl(${(names.indexOf(e.summary) * 137.5 + 20) % 360} 48% 52%)`; x.fillRect(40, y, 10, 80);
+      x.fillStyle = '#17191c'; x.font = 'bold 30px sans-serif'; x.fillText(hm(e.start) ? `${hm(e.start)}–${hm(e.end)}` : 'весь день', 70, y + 36);
+      x.font = '32px sans-serif'; x.fillText(fit(x, e.summary, W - 400), 340, y + 36);
+      x.fillStyle = '#6b7280'; x.font = '28px sans-serif'; x.fillText(fit(x, e.location || '', W - 400), 340, y + 72); y += 96;
+    });
+  });
+  return c;
+}
+let wkCanvas = null;
+$('wkb').onclick = () => { $('md').close(); $('wkd').value = lfmt(Date.now(), true); $('wki').style.display = 'none'; $('wkh').style.display = 'none'; $('wks').disabled = true; openD('wk'); };
+$('wkg').onclick = () => {
+  if (!$('wkd').value) return;
+  wkCanvas = drawWeek($('wkd').value); $('wki').src = wkCanvas.toDataURL('image/png');
+  $('wki').style.display = 'block'; $('wkh').style.display = 'block'; $('wks').disabled = false;
+};
+$('wks').onclick = () => {
+  if (!wkCanvas) return;
+  wkCanvas.toBlob(async b => {
+    const file = new File([b], 'raspisanie.png', { type:'image/png' });
+    try { if (navigator.canShare && navigator.canShare({ files:[file] })) await navigator.share({ files:[file] }); else toast('Нажмите и удерживайте картинку, чтобы сохранить'); } catch(e){}
+  });
+};
+$('wkc').onclick = () => $('wk').close();
+
+/* компактный вид */
+function setCompact(on){ document.body.classList.toggle('compact', on); $('mcp').textContent = 'Компактный вид: ' + (on ? 'вкл' : 'выкл'); lset('ics-compact', on ? '1' : ''); }
+$('mcp').onclick = () => setCompact(!document.body.classList.contains('compact'));
+setCompact(!!ls('ics-compact'));
+
+/* сокращения и шаблоны */
+function abbrMap(){ const m = {}; ls('ics-abbr').split('\n').forEach(l => { const i = l.indexOf('='); if (i > 0) m[l.slice(0, i).trim().toLowerCase()] = l.slice(i + 1).trim(); }); return m; }
+function applyAbbr(s){
+  const m = abbrMap(), w = s.split(' '), k = s.toLowerCase();
+  if (m[k]) return m[k];
+  if (w.length > 1 && m[w[0].toLowerCase()]){ w[0] = m[w[0].toLowerCase()]; return w.join(' '); }
+  return s;
+}
+function tplList(){
+  const out = []; let cur = null;
+  ls('ics-tpl').split('\n').forEach(l => { if (l.startsWith('#')){ cur = { n:l.slice(1).trim() || 'Шаблон', t:[] }; out.push(cur); } else if (cur && l.trim()) cur.t.push(l.trim()); });
+  return out;
+}
+$('qab').onclick = () => { $('abt').value = ls('ics-abbr'); $('tpt').value = ls('ics-tpl'); openD('ab'); };
+$('abc').onclick = () => $('ab').close();
+$('abs').onclick = () => { lset('ics-abbr', $('abt').value); lset('ics-tpl', $('tpt').value); $('ab').close(); $('qtp').innerHTML = tplList().map((t, i) => `<button type="button" class="chip" data-tp="${i}">${h(t.n)}</button>`).join(''); renderQ(); toast('Сохранено'); };
+$('qtp').onclick = e => { const b = e.target.closest('[data-tp]'); if (!b) return; $('qt').value += ($('qt').value && !$('qt').value.endsWith('\n') ? '\n' : '') + tplList()[+b.dataset.tp].t.join('\n') + '\n'; renderQ(); };
+
+/* копия правок */
+$('bkx').onclick = async () => {
+  if (!fileLoaded){ toast('Сначала загрузите файл'); return; }
+  const text = JSON.stringify({ v:1, fileName, others, events, orig, excluded:[...excluded], cfg, hist, abbr:ls('ics-abbr'), tpl:ls('ics-tpl') });
+  const file = new File([text], 'ics-backup.json', { type:'application/json' });
+  if (navigator.canShare && navigator.canShare({ files:[file] })){ try { await navigator.share({ files:[file] }); return; } catch(e){ if (e.name === 'AbortError') return; } }
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent)){ $('txa').value = text; openD('txd'); toast('Скопируйте текст и сохраните в заметки'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type:'application/json' })); a.download = 'ics-backup.json'; a.click();
+};
+$('bki').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const o = JSON.parse(r.result); if (!o.events || !o.others) throw 0;
+      setData(o.events, o.others, o.fileName || 'schedule.ics', o.orig, o.excluded, o.cfg); hist = o.hist || [];
+      lset('ics-abbr', o.abbr || ''); lset('ics-tpl', o.tpl || ''); $('md').close(); toast('Копия правок загружена');
+    } catch(err){ toast('Не удалось прочитать файл копии'); }
+  };
+  r.readAsText(f); e.target.value = '';
+};
 
 function openD(id){ $(id).showModal(); try { tg.BackButton.show(); } catch(e){} syncMain(); }
 document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', () => {

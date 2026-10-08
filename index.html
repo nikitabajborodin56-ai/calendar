@@ -369,11 +369,12 @@ const wkName = dk => { const n = wkNum(dk); return n >= 1 ? `нед. ${n} · ${n
 const byId = id => events.find(e => e.id === id);
 function snapOrig(){ orig = {}; events.forEach(e => orig[okey(e)] = { s: sig(e), name: lbl(e) }); }
 function saveDraft(){
+  if (!fileLoaded) return;
   try { localStorage.setItem('ics-draft', JSON.stringify({ fileName, others, events, orig, excluded: [...excluded], cfg, hist: (typeof hist !== 'undefined' ? hist : []).slice(0, 50) })); } catch(e){}
 }
 function loadDraft(){ try { return JSON.parse(localStorage.getItem('ics-draft')); } catch(e){ return null; } }
-const snap = () => JSON.stringify({ e: events, x: [...excluded] });
-const restore = t => { const o = JSON.parse(t); events = o.e; excluded = new Set(o.x); sel.clear(); saveDraft(); render(); };
+const snap = () => JSON.stringify({ e: events, x: [...excluded], h: hist });
+const restore = t => { const o = JSON.parse(t); events = o.e; excluded = new Set(o.x); if (o.h) hist = o.h; sel.clear(); saveDraft(); render(); };
 function mutate(fn){
   const before = snap(); undoStack.push(before); if (undoStack.length > 30) undoStack.shift(); redoStack = [];
   fn(); logHist(before); saveDraft(); render(); buzz();
@@ -482,10 +483,11 @@ const p2 = n => String(n).padStart(2,'0');
 $('q').oninput = () => { clearTimeout(render.t); render.t = setTimeout(render, 150); };
 
 /* ---------- load ---------- */
-function setData(evs, oth, name, o, ex, c){
+function setData(evs, oth, name, o, ex, c, hs){
   excluded = new Set(ex || []); if (c) cfg = Object.assign({ start:'', colors:{} }, c); events = evs; others = oth; fileName = name; fileLoaded = true; undoStack = []; sel.clear(); selMode = false; scrolled = false;
   nid = Math.max(nid, ...events.map(e => e.id), 0);
-  redoStack = []; conflictOnly = false; hist = [];
+  redoStack = []; conflictOnly = false; hist = normHist(hs);
+  nid = Math.max(nid, 0, ...hist.flatMap(x => [...x.added.map(a => a.id), ...x.removed.map(r => r.id), ...x.changed.map(c => c.id)]));
   if (o) orig = o;
   events.forEach(e => { if (!e.uid){ const k = okey(e); e.uid = newUid(); if (o && orig[k]){ orig[e.uid] = orig[k]; delete orig[k]; } } });
   if (!o) snapOrig();
@@ -504,7 +506,7 @@ function load(file){
   r.readAsText(file);
 }
 $('file').onchange = e => load(e.target.files[0]);
-$('closef').onclick = () => { fileLoaded = false; events = []; others = []; undoStack = []; redoStack = []; sel.clear(); selMode = false; conflictOnly = false; $('q').value = ''; try { tg.disableClosingConfirmation(); } catch(e){} render(); toast('Файл закрыт, черновик сохранён'); };
+$('closef').onclick = () => { saveDraft(); fileLoaded = false; hist = []; events = []; others = []; undoStack = []; redoStack = []; sel.clear(); selMode = false; conflictOnly = false; $('q').value = ''; try { tg.disableClosingConfirmation(); } catch(e){} render(); toast('Файл закрыт, черновик сохранён'); };
 $('drop').onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); $('file').click(); } };
 $('list').onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.m')){ e.preventDefault(); e.target.click(); } };
 $('sub').onclick = () => { if (badSet.size){ conflictOnly = !conflictOnly; render(); } };
@@ -514,7 +516,7 @@ const drop = $('drop');
 drop.addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
 $('draft').onclick = e => {
   if (!e.target.closest('#resume')) return;
-  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded, d.cfg); hist = d.hist || [];
+  const d = loadDraft(); if (d) setData(d.events, d.others, d.fileName, d.orig, d.excluded, d.cfg, d.hist);
 };
 
 /* ---------- editor ---------- */
@@ -790,54 +792,89 @@ function toast(t, act){
 }
 function buzz(){ try { tg.HapticFeedback.impactOccurred('light'); } catch(e){} }
 /* ---------- история изменений ---------- */
-let hist = [], histPrefix = '';
+let hist = [], histPrefix = '', histOf = null, revBusy = false;
 const FN = { summary:'название', location:'место', description:'заметка', start:'время', end:'время', cancelled:'отмена', noconf:'пересечение' };
+const J = v => JSON.stringify(v === undefined ? null : v);
+const cl = v => JSON.parse(JSON.stringify(v));
+function normHist(a){   /* принимает и старый формат записей, и новый */
+  return (a || []).map(x => ({
+    hid: x.hid || ('o' + x.t + Math.random().toString(36).slice(2, 5)), t: x.t || Date.now(), label: x.label || '',
+    rev: !!x.rev, part: x.part || 0, skip: x.skip || '', of: x.of || null,
+    added: (x.added || []).map(v => typeof v === 'object' ? v : { id: v }),
+    removed: x.removed || [],
+    changed: (x.changed || []).map(c => c.before ? c : { id: c.id, name: c.name, before: c.fields || {}, after: null })
+  })).slice(0, 50);
+}
 function logHist(beforeJSON){
   const b = JSON.parse(beforeJSON).e, bm = new Map(b.map(e => [e.id, e])), am = new Map(events.map(e => [e.id, e]));
   const added = events.filter(e => !bm.has(e.id)), removed = b.filter(o => !am.has(o.id)), changed = [];
   events.forEach(e => {
     const o = bm.get(e.id); if (!o) return;
-    const f = {};
-    new Set([...Object.keys(o), ...Object.keys(e)]).forEach(k => { if (JSON.stringify(o[k]) !== JSON.stringify(e[k])) f[k] = o[k] === undefined ? null : o[k]; });
-    if (Object.keys(f).length) changed.push({ id:e.id, name:lbl(e), fields:f });
+    const bf = {}, af = {};
+    new Set([...Object.keys(o), ...Object.keys(e)]).forEach(k => { if (J(o[k]) !== J(e[k])){ bf[k] = o[k] === undefined ? null : cl(o[k]); af[k] = e[k] === undefined ? null : cl(e[k]); } });
+    if (Object.keys(bf).length) changed.push({ id:e.id, uid:e.uid, name:lbl(e), before:bf, after:af });
   });
   if (!added.length && !removed.length && !changed.length) return;
   const parts = [], one = (a, w) => a.length === 1 ? `${w}: ${lbl(a[0])}` : `${w}: ${a.length}`;
   if (added.length) parts.push(one(added, 'Добавлено'));
   if (removed.length) parts.push(one(removed, 'Удалено'));
   if (changed.length){
-    const names = [...new Set(changed.flatMap(c => Object.keys(c.fields).map(k => FN[k] || 'прочее')))].join(', ');
+    const names = [...new Set(changed.flatMap(c => Object.keys(c.before).map(k => FN[k] || 'прочее')))].join(', ');
     parts.push(changed.length === 1 ? `Изменено: ${changed[0].name} (${names})` : `Изменено: ${changed.length} (${names})`);
   }
-  hist.unshift({ t:Date.now(), label:histPrefix + parts.join(' · '), added:added.map(e => e.id), removed, changed, rev:false });
-  if (hist.length > 50) hist.pop();
+  hist.unshift({ hid: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t: Date.now(), label: histPrefix + parts.join(' · '),
+    added: added.map(e => ({ id:e.id, uid:e.uid })), removed: cl(removed), changed, rev:false, part:0, skip:'', of:histOf });
+  if (hist.length > 50) hist.length = 50;
 }
-function applyRevert(x, dry){
-  let n = 0;
-  x.added.forEach(id => { if (byId(id)){ n++; if (!dry) events = events.filter(e => e.id !== id); } });
-  x.removed.forEach(o => { if (!byId(o.id)){ n++; if (!dry) events.push(JSON.parse(JSON.stringify(o))); } });
-  x.changed.forEach(c => {
-    const e = byId(c.id); if (!e) return;
-    const diff = Object.keys(c.fields).filter(k => JSON.stringify(e[k]) !== JSON.stringify(c.fields[k] === null ? undefined : c.fields[k]));
-    if (diff.length){ n++; if (!dry) diff.forEach(k => { if (c.fields[k] === null) delete e[k]; else e[k] = JSON.parse(JSON.stringify(c.fields[k])); }); }
+/* что из этого изменения можно откатить прямо сейчас (с учётом того, что было сделано после) */
+function planRevert(x){
+  const ops = [], skipped = [];
+  x.added.forEach(a => { const e = events.find(z => z.id === a.id && (!a.uid || z.uid === a.uid)); if (e) ops.push(() => { events = events.filter(z => z !== e); }); });
+  x.removed.forEach(o => {
+    if (events.some(z => z.id === o.id && z.uid === o.uid)) return;
+    ops.push(() => { const n = cl(o); if (events.some(z => z.id === n.id)) n.id = ++nid; events.push(n); });
   });
-  return n;
+  x.changed.forEach(c => {
+    const e = events.find(z => z.id === c.id && (!c.uid || z.uid === c.uid)); if (!e) return;
+    const todo = [];
+    Object.keys(c.before).forEach(k => {
+      const cur = J(e[k]);
+      if (cur === J(c.before[k])) return;                                   /* уже как было */
+      if (c.after && J(c.after[k]) !== cur){ skipped.push(FN[k] || k); return; }   /* поле менялось позже: не трогаем */
+      todo.push(k);
+    });
+    if (todo.length) ops.push(() => todo.forEach(k => { if (c.before[k] === null) delete e[k]; else e[k] = cl(c.before[k]); }));
+  });
+  return { ops, skipped: [...new Set(skipped)] };
 }
-function revertHist(i){
-  const x = hist[i]; if (!x || x.rev) return;
-  if (!applyRevert(x, true)){ x.rev = true; renderHist(); toast('Уже восстановлено, откатывать нечего'); return; }
-  histPrefix = 'Откат: '; mutate(() => applyRevert(x, false)); histPrefix = ''; x.rev = true;
-  renderHist(); toast('Изменение откачено · Вернуть', true);
+function revertHist(hid){
+  if (revBusy) return;
+  const x = hist.find(z => z.hid === hid); if (!x || x.rev) return;
+  const { ops, skipped } = planRevert(x);
+  if (!ops.length){
+    x.rev = true; x.part = skipped.length ? 1 : 0; x.skip = skipped.join(', '); saveDraft(); renderHist();
+    toast(skipped.length ? 'Откатывать нечего: эти поля менялись позже' : 'Уже восстановлено, откатывать нечего'); return;
+  }
+  revBusy = true; histPrefix = 'Откат: '; histOf = hid;
+  try {
+    mutate(() => { ops.forEach(f => f()); x.rev = true; x.part = skipped.length ? 1 : 0; x.skip = skipped.join(', '); });
+  } finally { histPrefix = ''; histOf = null; revBusy = false; }
+  renderHist();
+  toast(skipped.length ? `Откачено частично, пропущено: ${skipped.join(', ')} · Вернуть` : 'Изменение откачено · Вернуть', true);
 }
 function renderHist(){
   const q = $('hq').value.trim().toLowerCase();
-  const L = hist.map((x, i) => ({ x, i })).filter(o => !q || o.x.label.toLowerCase().includes(q));
-  $('hl').innerHTML = L.length ? L.map(({ x, i }) => `<div class="hrow ${x.rev ? 'rv' : ''}"><div><b>${h(x.label)}</b><small>${new Date(x.t).toLocaleString('ru', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}${x.rev ? ' · откачено' : ''}</small></div>${x.rev ? '' : `<button class="sm" data-rv="${i}">Откатить</button>`}</div>`).join('') : `<div class="empty">${hist.length ? 'Ничего не найдено' : 'Пока нет изменений'}</div>`;
+  const L = hist.filter(x => !q || x.label.toLowerCase().includes(q));
+  const st = x => !x.rev ? '' : x.part ? ` · откачено частично (позже менялось: ${h(x.skip)})` : ' · откачено';
+  $('hl').innerHTML = L.length ? L.map(x => `<div class="hrow ${x.rev ? 'rv' : ''}"><div><b>${h(x.label)}</b><small>${new Date(x.t).toLocaleString('ru', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}${st(x)}</small></div>${x.rev ? '<span style="color:var(--hint)">✓</span>' : `<button class="sm" data-rv="${x.hid}">Откатить</button>`}</div>`).join('') : `<div class="empty">${hist.length ? 'Ничего не найдено' : 'Пока нет изменений'}</div>`;
 }
 $('hq').oninput = renderHist;
-$('hl').onclick = e => { const b = e.target.closest('[data-rv]'); if (b) revertHist(+b.dataset.rv); };
+$('hl').onclick = e => { const b = e.target.closest('[data-rv]'); if (b) revertHist(b.dataset.rv); };
 $('hdn').onclick = () => $('hd').close();
 $('mhi').onclick = () => { $('md').close(); renderHist(); openD('hd'); };
+/* сохраняем состояние, когда приложение сворачивают или закрывают */
+addEventListener('pagehide', saveDraft);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveDraft(); });
 
 /* ---------- быстрый ввод текстом ---------- */
 const QD = { 'пн':1,'пон':1,'понедельник':1,'вт':2,'втор':2,'вторник':2,'ср':3,'среда':3,'чт':4,'четверг':4,'пт':5,'пятница':5,'сб':6,'среду':3,'пятницу':5,'субботу':6,'суббота':6,'вс':0,'воскресенье':0 };
@@ -1049,7 +1086,7 @@ $('bki').onchange = e => {
   r.onload = () => {
     try {
       const o = JSON.parse(r.result); if (!o.events || !o.others) throw 0;
-      setData(o.events, o.others, o.fileName || 'schedule.ics', o.orig, o.excluded, o.cfg); hist = o.hist || [];
+      setData(o.events, o.others, o.fileName || 'schedule.ics', o.orig, o.excluded, o.cfg, o.hist);
       lset('ics-abbr', o.abbr || ''); lset('ics-tpl', o.tpl || ''); $('md').close(); toast('Копия правок загружена');
     } catch(err){ toast('Не удалось прочитать файл копии'); }
   };
@@ -1114,8 +1151,8 @@ function mergeFile(text){
   events.filter(e => !orig[okey(e)]).forEach(e => out.push(e));
   evs.filter(n => !used.has(n)).forEach(n => { if (!n.uid) n.uid = newUid(); push(n, n); st.add++; });
   if (!confirm(`Новых пар: ${st.add}\nУбрано из расписания: ${st.gone}\nВаших правок перенесено: ${st.carried + st.kept}\nВаших удалений сохранено: ${st.del}\n\nПрименить?`)) return;
-  events = out; others = oth; orig = no; undoStack = []; redoStack = []; sel.clear(); conflictOnly = false;
-  nid = Math.max(nid, ...events.map(e => e.id)); saveDraft(); render(); toast('Расписание обновлено');
+  events = out; others = oth; orig = no; undoStack = []; redoStack = []; hist = []; sel.clear(); conflictOnly = false;
+  nid = Math.max(nid, ...events.map(e => e.id)); saveDraft(); render(); toast('Расписание обновлено, история сброшена');
 }
 $('uf').onchange = e => {
   const f = e.target.files[0]; if (!f) return;
